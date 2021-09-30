@@ -6,6 +6,7 @@ data_epithelia
 checkpoints
 checkpoints_BBBC006
 BBBC006.zip
+*.zarr
 *kaggle*
 tile_and_stitch_BBBC006.ipynb
 .ipynb_checkpoints
