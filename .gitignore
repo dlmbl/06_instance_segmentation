@@ -7,6 +7,7 @@ checkpoints
 checkpoints_BBBC006
 BBBC006.zip
 *.zarr
+model_checkpoint*
 *kaggle*
 tile_and_stitch_BBBC006.ipynb
 .ipynb_checkpoints
