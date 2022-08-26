@@ -233,6 +233,8 @@ class UNet(torch.nn.Module):
             constant_upsample (optional):
                 If set to true, perform a constant upsampling instead of a
                 transposed convolution in the upsampling layers.
+            padding (optional):
+                How to pad convolutions. Either 'same' or 'valid' (default).
         """
 
         super(UNet, self).__init__()
