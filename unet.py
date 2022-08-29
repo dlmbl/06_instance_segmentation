@@ -29,6 +29,7 @@ class ConvPass(torch.nn.Module):
 
             if activation is not None:
                 layers.append(activation())
+                layers.append(nn.BatchNorm2d(out_channels))
 
         self.conv_pass = torch.nn.Sequential(*layers)
 
