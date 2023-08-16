@@ -190,3 +190,4 @@ dependencies:
     - torch==1.12.1
     - torchsummary==1.5.1
     - werkzeug==2.2.2
+    - awscli==1.29.26
