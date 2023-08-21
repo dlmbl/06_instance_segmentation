@@ -9,3 +9,4 @@ unzip woodshole_new.zip
 mkdir woodshole
 mv woodshole_new/* woodshole
 rm woodshole_new.zip
+rm -r woodshole_new
