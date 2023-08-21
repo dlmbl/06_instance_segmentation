@@ -162,6 +162,7 @@ dependencies:
     - joblib
     - kiwisolver
     - llvmlite
+    - lsds
     - markdown
     - matplotlib
     - natsort
