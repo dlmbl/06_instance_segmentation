@@ -184,14 +184,13 @@ def watershed_from_boundary_distance(
 
 def get_boundary_mask(pred, prediction_type, thresh=None):
     
-    if prediction_type == 'two_class' or prediction_type == 'sdt':
+    if prediction_type == 'sdt' or prediction_type == 'two_class':
         # simple threshold
         boundary_mask = pred > thresh
 
     elif prediction_type == 'three_class':
-        # Return the indices of the maximum values along channel axis, then set mask to cell interior (1)
-        boundary_mask = np.argmax(pred, axis=0)
-        boundary_mask = boundary_mask == 1
+        # fg = prediction greater than / equal to threshold
+        boundary_mask = pred[1] > thresh
 
     elif prediction_type == 'affs':
         # take mean of combined affs then threshold
