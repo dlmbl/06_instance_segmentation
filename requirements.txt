@@ -1,0 +1,12 @@
+black
+gdown
+torch
+torchvision
+jupyter 
+imageio
+scipy
+scikit-image
+tensorboard
+matplotlib
+ipykernel
+jupytext

@@ -1,9 +1,15 @@
-mamba activate base
-echo -e "\n creating mamba env... \n"
-mamba env create -f environment.yml
-jupyter nbextension enable --py widgetsnbextension
-mamba activate base
+# Create environment name based on the exercise name
+mamba create -n 04-instance-segmentation python=3.11 -y
+mamba activate 04-instance-segmentation
 
+# Install additional requirements
+pip install uv
+uv pip install -r requirements.txt
+
+# Return to base environment
+mamba deactivate
+
+# Download and extract data, etc.
 echo -e "\n downloading data...\n"
 aws s3 cp "s3://dl-at-mbl-2023-data/woodshole_new.zip" "." --no-sign-request
 unzip woodshole_new.zip
