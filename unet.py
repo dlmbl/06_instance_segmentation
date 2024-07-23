@@ -6,7 +6,6 @@ import numpy as np
 
 class ConvPass(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_sizes, padding, activation):
-
         super(ConvPass, self).__init__()
 
         if activation is not None:
@@ -39,7 +38,6 @@ class ConvPass(torch.nn.Module):
 
 class Downsample(torch.nn.Module):
     def __init__(self, downsample_factor):
-
         super(Downsample, self).__init__()
 
         self.dims = len(downsample_factor)
@@ -70,7 +68,6 @@ class Upsample(torch.nn.Module):
         padding="VALID",
         next_conv_kernel_sizes=None,
     ):
-
         super(Upsample, self).__init__()
 
         assert (crop_factor is None) == (
@@ -128,7 +125,6 @@ class Upsample(torch.nn.Module):
         )
 
         if target_spatial_shape != spatial_shape:
-
             assert all(
                 ((t > c) for t, c in zip(target_spatial_shape, convolution_crop))
             ), (
@@ -153,7 +149,6 @@ class Upsample(torch.nn.Module):
         return x[slices]
 
     def forward(self, f_left, g_out):
-
         g_up = self.up(g_out)
 
         # if self.next_conv_kernel_sizes is not None and self.padding in ("VALID", "valid"):
@@ -327,7 +322,6 @@ class UNet(torch.nn.Module):
         )
 
     def rec_fov(self, level, fov, sp):
-
         # index of level in layer arrays
         i = self.num_levels - level - 1
 
@@ -358,7 +352,6 @@ class UNet(torch.nn.Module):
         return fov
 
     def rec_forward(self, level, f_in):
-
         # index of level in layer arrays
         i = self.num_levels - level - 1
 
@@ -382,7 +375,6 @@ class UNet(torch.nn.Module):
         return fs_out
 
     def forward(self, x):
-
         y = self.rec_forward(self.num_levels - 1, x)
 
         return y
