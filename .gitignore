@@ -18,4 +18,5 @@ tile_and_stitch_BBBC006.ipynb
 *.json
 *.npy
 *.pth
-woodshole
+
+tissuenet_data
