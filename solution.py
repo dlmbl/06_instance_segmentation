@@ -25,6 +25,7 @@
 
 # %%
 import multiprocessing
+
 multiprocessing.set_start_method("fork", force=True)
 
 # %% [markdown]
@@ -40,7 +41,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from scipy.ndimage import distance_transform_edt
 from local import train, NucleiDataset, plot_two, plot_three, plot_four
-from unet import UNet
+from dlmbl_unet import UNet
 from tqdm import tqdm
 import tifffile
 
@@ -49,6 +50,7 @@ from skimage.filters import threshold_otsu
 
 # %%
 device = "cpu"  # 'cuda', 'cpu', 'mps'
+NUM_THREADS = 0
 # make sure gpu is available. Please call a TA if this cell fails
 # assert torch.cuda.is_available()
 
@@ -103,6 +105,11 @@ def compute_sdt(labels: np.ndarray, scale: int):
 
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
+
+    ### VERY SLOW SINCE WE COMPUTE A DISTANCE TRANSFORM PER LABEL
+    ### TRY COMPUTING THE DISTANCE TRANSFORMS ON THE AFFS PRODUCED
+    ### BY THE NEIGHBORHOOD: [(0,1), (1,0)] (for 2D), INTERPOLATING
+    ### AT HALF VOXEL OFFSETS, AND THEN TAKING THE MIN.
 
     # compute the distance transform inside and outside of the objects
     labels = np.asarray(labels)
@@ -313,7 +320,7 @@ class SDTDataset(Dataset):
 # We will use `plot_two` (imported in the first cell) to verify that our dataset solution is correct. The output should show 2 images: the raw image and the corresponding SDT.
 # %%
 train_data = SDTDataset("tissuenet_data/train", transforms.RandomCrop(256))
-train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=8)
+train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS)
 
 idx = np.random.randint(len(train_data))  # take a random sample
 img, sdt = train_data[idx]  # get the image and the nuclei masks
@@ -368,12 +375,14 @@ learning_rate = 1e-4
 
 # %% tags=["solution"]
 unet = UNet(
+    depth=2,
     in_channels=1,
+    out_channels=1,
+    final_activation=torch.nn.Tanh(),
     num_fmaps=4,
-    num_fmaps_out=1,
-    fmap_inc_factors=3,
+    fmap_inc_factor=3,
+    downsample_factor=2,
     padding="same",
-    downsample_factors=[(2, 2)] * 3,
 )
 
 learning_rate = 1e-4
@@ -591,7 +600,7 @@ from local import evaluate
 
 # Need to re-initialize the dataloader to return masks in addition to SDTs.
 val_dataset = SDTDataset("tissuenet_data/test", return_mask=True)
-val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8)
+val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS)
 unet.eval()
 
 (
@@ -650,8 +659,10 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # create a new dataset for affinities
 from local import compute_affinities
 
+
 class AffinityDataset(Dataset):
     """A PyTorch dataset to load cell images and nuclei masks"""
+
     def __init__(self, root_dir, transform=None, img_transform=None, return_mask=False):
         self.root_dir = root_dir  # the directory with all the training samples
         self.num_samples = len(os.listdir(self.root_dir)) // 3  # list the samples
@@ -718,7 +729,7 @@ class AffinityDataset(Dataset):
 # Initialize the datasets
 
 train_data = AffinityDataset("tissuenet_data/train", transforms.RandomCrop(256))
-train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=8)
+train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS)
 idx = np.random.randint(len(train_data))  # take a random sample
 img, affinity = train_data[idx]  # get the image and the nuclei masks
 plot_two(img[0], affinity[0] + affinity[1], label="AFFINITY")
@@ -751,13 +762,16 @@ learning_rate = 1e-4
 
 
 # %% tags=["solution"]
+
 unet = UNet(
+    depth=2,
     in_channels=1,
+    out_channels=2,
+    final_activation=torch.nn.Sigmoid(),
     num_fmaps=4,
-    num_fmaps_out=2,
-    fmap_inc_factors=3,
+    fmap_inc_factor=3,
+    downsample_factor=2,
     padding="same",
-    downsample_factors=[(2, 2)] * 3,
 )
 
 learning_rate = 1e-4
@@ -801,7 +815,7 @@ plot_three(image, mask[0] + mask[1], pred[0] + pred[1], label="Affinity")
 
 # %%
 val_dataset = AffinityDataset("tissuenet_data/test", return_mask=True)
-val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8)
+val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS)
 unet.eval()
 
 (
