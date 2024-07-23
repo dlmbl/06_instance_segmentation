@@ -10,3 +10,4 @@ tensorboard
 matplotlib
 ipykernel
 jupytext
+cellpose
