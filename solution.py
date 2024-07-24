@@ -39,7 +39,7 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import distance_transform_edt, map_coordinates
 from local import train, NucleiDataset, plot_two, plot_three, plot_four
 from dlmbl_unet import UNet
 from tqdm import tqdm
@@ -105,30 +105,43 @@ def compute_sdt(labels: np.ndarray, scale: int):
 
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
+    dims = len(labels.shape)
+    distances = np.ones(labels.shape, dtype=np.float32) * np.inf
+    for axis in range(dims):
+        affs = (
+            labels[*[slice(None) if a != axis else slice(1, None) for a in range(dims)]]
+            == labels[
+                *[slice(None) if a != axis else slice(None, -1) for a in range(dims)]
+            ]
+        )
+        affs = np.pad(
+            affs,
+            [(1, 1) if a == axis else (0, 0) for a in range(dims)],
+            mode="constant",
+            constant_values=1,
+        )
+        axis_distances = distance_transform_edt(affs)
 
-    ### VERY SLOW SINCE WE COMPUTE A DISTANCE TRANSFORM PER LABEL
-    ### TRY COMPUTING THE DISTANCE TRANSFORMS ON THE AFFS PRODUCED
-    ### BY THE NEIGHBORHOOD: [(0,1), (1,0)] (for 2D), INTERPOLATING
-    ### AT HALF VOXEL OFFSETS, AND THEN TAKING THE MIN.
+        coordinates = np.meshgrid(
+            *[
+                range(axis_distances.shape[a])
+                if a != axis
+                else np.linspace(0.5, axis_distances.shape[a] - 1.5, labels.shape[a])
+                for a in range(dims)
+            ],
+            indexing="ij",
+        )
+        coordinates = np.stack(coordinates)
 
-    # compute the distance transform inside and outside of the objects
-    labels = np.asarray(labels)
-    ids = np.unique(labels)
-    ids = ids[ids != 0]
-    inner = np.zeros(labels.shape, dtype=np.float32)
-
-    for id_ in ids:
-        inner += distance_transform_edt(labels == id_)
-    outer = distance_transform_edt(labels == 0)
-
-    # create the signed distance transform
-    distance = inner - outer
-
-    # scale the distances so that they are between -1 and 1 (hint: np.tanh)
-    distance = np.tanh(distance / scale)
-
-    # be sure to return your solution as type 'float'
-    return distance.astype(float)
+        sampled = map_coordinates(
+            axis_distances,
+            coordinates=coordinates,
+            order=3,
+        )
+        distances = np.minimum(distances, sampled)
+    distances = np.tanh(distances / scale)
+    distances[labels == 0] *= -1
+    return distances
 
 
 # %% [markdown]
