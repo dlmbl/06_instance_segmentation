@@ -220,7 +220,7 @@ class SDTDataset(Dataset):
             mask_path = os.path.join(
                 self.root_dir, self.samples[sample_ind], "label.tif"
             )
-            mask = Image.open(mask_path)
+            mask = tifffile.imread(mask_path)
             mask.load()
             self.loaded_masks[sample_ind] = mask
 
@@ -287,12 +287,11 @@ class SDTDataset(Dataset):
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
             image = tifffile.imread(img_path)
-            image = image[0] - image[1]
+            image = image[0]
             self.loaded_imgs[sample_ind] = inp_transforms(image)
-            mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = Image.open(mask_path)
-            mask.load()
-            self.loaded_masks[sample_ind] = mask
+            mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_nuclei_masks.tif")
+            mask = tifffile.imread(mask_path)
+            self.loaded_masks[sample_ind] = transforms.ToTensor()(mask)
 
     # get the total number of samples
     def __len__(self):
@@ -312,11 +311,11 @@ class SDTDataset(Dataset):
             image = self.transform(image)
             torch.manual_seed(seed)
             mask = self.transform(mask)
-        sdt = self.create_sdt_target(mask)
+        sdt = self.create_sdt_target(mask[0])
         if self.img_transform is not None:
             image = self.img_transform(image)
         if self.return_mask is True:
-            return image, transforms.ToTensor()(mask), sdt
+            return image, mask, sdt
         else:
             return image, sdt
 
@@ -700,7 +699,7 @@ class AffinityDataset(Dataset):
             image = image[0] - image[1]
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = Image.open(mask_path)
+            mask = tifffile.imread(mask_path)
             mask.load()
             self.loaded_masks[sample_ind] = mask
 
