@@ -51,6 +51,7 @@ from skimage.filters import threshold_otsu
 # %%
 device = "cpu"  # 'cuda', 'cpu', 'mps'
 NUM_THREADS = 0
+NUM_EPOCHS = 2
 # make sure gpu is available. Please call a TA if this cell fails
 # assert torch.cuda.is_available()
 
@@ -186,19 +187,18 @@ class SDTDataset(Dataset):
                 v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
-        to_img = v2.ToImage()
+        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = to_img(tifffile.imread(img_path))
-            image = image[0]
+            image = self.to_img(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(
                 self.root_dir, f"img_{sample_ind}_nuclei_masks.tif"
             )
-            mask = to_img(tifffile.imread(mask_path))
+            mask = self.to_img(tifffile.imread(mask_path))
             self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
@@ -219,17 +219,17 @@ class SDTDataset(Dataset):
             image = self.transform(image)
             torch.manual_seed(seed)
             mask = self.transform(mask)
-        sdt = self.create_sdt_target(mask[0])
+        sdt = self.create_sdt_target(mask)
         if self.img_transform is not None:
             image = self.img_transform(image)
         if self.return_mask is True:
-            return image, mask, sdt
+            return image, mask.unsqueeze(0), sdt.unsqueeze(0)
         else:
-            return image, sdt
+            return image, sdt.unsqueeze(0)
 
     def create_sdt_target(self, mask):
-        sdt_target_array = compute_sdt(mask)
-        sdt_target = v2.ToImage(sdt_target_array)
+        sdt_target_array = compute_sdt(mask.numpy())
+        sdt_target = self.to_img(sdt_target_array)
         return sdt_target.float()
 
 
@@ -247,7 +247,7 @@ train_loader = DataLoader(
 idx = np.random.randint(len(train_data))  # take a random sample
 img, sdt = train_data[idx]  # get the image and the nuclei masks
 print(img.shape, sdt.shape)
-plot_two(img[0], sdt[0], label="SDT")
+plot_two(img[1], sdt[0], label="SDT")
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
@@ -265,11 +265,10 @@ plot_two(img[0], sdt[0], label="SDT")
 #       - [relu](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html#torch.nn.ReLU)
 
 
-
 # %% tags=["solution"]
 unet = UNet(
     depth=2,
-    in_channels=1,
+    in_channels=2,
     out_channels=1,
     final_activation=torch.nn.Tanh(),
     num_fmaps=16,
@@ -282,7 +281,7 @@ learning_rate = 1e-4
 loss = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
 
-for epoch in range(40):
+for epoch in range(NUM_EPOCHS):
     train(
         unet,
         train_loader,
@@ -307,7 +306,7 @@ pred = unet(torch.unsqueeze(image, dim=0))
 image = np.squeeze(image.cpu())
 sdt = np.squeeze(sdt.cpu().numpy())
 pred = np.squeeze(pred.cpu().detach().numpy())
-plot_three(image, sdt, pred)
+plot_three(image[0], sdt, pred)
 
 
 # %% [markdown]
@@ -394,7 +393,6 @@ def get_inner_mask(pred, threshold):
 # </div>
 
 
-
 # %% tags=["solution"]
 idx = np.random.randint(len(val_data))  # take a random sample
 image, mask = val_data[idx]  # get the image and the nuclei masks
@@ -427,7 +425,7 @@ seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
 # Visualize the results
 
 # plot_four(image, mask, pred, seg, label="Target", cmap=label_cmap)
-plot_four(image, mask, pred, seg, label="Target")
+plot_four(image[0], mask, pred, seg, label="Target")
 
 # %% [markdown]
 # Questions:
@@ -542,22 +540,19 @@ class AffinityDataset(Dataset):
         #  transformations to apply just to inputs
         inp_transforms = v2.Compose(
             [
-                v2.ToImage(),
                 v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
-        to_img = v2.ToImage()
+        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = to_img(tifffile.imread(img_path))
-            image = image[0] - image[1]
+            image = self.to_img(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = to_img(tifffile.imread(mask_path))
-            mask.load()
+            mask = self.to_img(tifffile.imread(mask_path))
             self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
@@ -615,12 +610,11 @@ plot_two(img[0], affinity[0] + affinity[1], label="AFFINITY")
 # (The best for SDT is not necessarily the best for affinities.)
 
 
-
 # %% tags=["solution"]
 
 unet = UNet(
     depth=2,
-    in_channels=1,
+    in_channels=2,
     out_channels=2,
     final_activation=torch.nn.Sigmoid(),
     num_fmaps=4,
@@ -636,7 +630,7 @@ loss = torch.nn.MSELoss()
 
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
 
-for epoch in range(20):
+for epoch in range(NUM_EPOCHS):
     train(
         unet,
         train_loader,
@@ -658,12 +652,13 @@ unet.eval()
 idx = np.random.randint(len(val_data))  # take a random sample
 image, mask = val_data[idx]  # get the image and the nuclei masks
 image = image.to(device)
-pred = unet(torch.unsqueeze(image, dim=0))
-image = np.squeeze(image.cpu())
-mask = np.squeeze(mask.cpu().numpy())
-pred = np.squeeze(pred.cpu().detach().numpy())
+pred = torch.squeeze(unet(torch.unsqueeze(image, dim=0)))
 
-plot_three(image, mask[0] + mask[1], pred[0] + pred[1], label="Affinity")
+image = image.cpu()
+mask = mask.cpu().numpy()
+pred = pred.cpu().detach().numpy()
+
+plot_three(image[0], mask[0] + mask[1], pred[0] + pred[1], label="Affinity")
 
 # %% [markdown]
 # Let's also evaluate the model performance.
@@ -735,29 +730,6 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # Install cellpose.
 # !pip install cellpose
 
-# %%
-from cellpose import models
-
-# Implement a cellpose pretrained model.
-# TODO
-
-# evaluation
-precision_list, recall_list, accuracy_list = [], [], []
-for idx, (image, mask, _) in enumerate(tqdm(val_loader)):
-    gt_labels = np.squeeze(mask.cpu().numpy())
-    image = np.squeeze(image.cpu().numpy())
-
-    # evaluate the model to get predictions
-    pred_labels = ...
-
-    precision, recall, accuracy = evaluate(gt_labels, pred_labels[0])
-    precision_list.append(precision)
-    recall_list.append(recall)
-    accuracy_list.append(accuracy)
-
-print(f"Mean Precision is {np.mean(precision_list):.3f}")
-print(f"Mean Recall is {np.mean(recall_list):.3f}")
-print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # %% tags=["solution"]
 from cellpose import models
 
