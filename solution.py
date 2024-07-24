@@ -38,7 +38,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-from torchvision import transforms
+from torchvision.transforms import v2
 from scipy.ndimage import distance_transform_edt, map_coordinates
 from local import train, NucleiDataset, plot_two, plot_three, plot_four
 from dlmbl_unet import UNet
@@ -78,24 +78,6 @@ NUM_THREADS = 0
 # <div class="alert alert-block alert-info">
 # <b>Task 1.1</b>: Write a function to compute the signed distance transform.
 # </div>
-# %%
-# Write a function to calculate SDT.
-# (Hint: Use `distance_transform_edt`)
-from scipy.ndimage import distance_transform_edt
-
-
-def compute_sdt(labels: np.ndarray, scale: int):
-    """Function to compute a signed distance transform."""
-    labels = np.asarray(labels)
-    # compute the distance transform inside of each individual object and the background
-
-    # create the signed distance transform
-    # remember that it should be positive inside the objects and negative outside
-
-    # scale the distances with the scale parameter and then normalize so that they are between -1 and 1 (hint: np.tanh)
-
-    # be sure to return your solution as type 'float'
-    return
 
 
 # %% tags=["solution"]
@@ -185,83 +167,6 @@ plot_two(img[0], sdt, label="SDT")
 # </div>
 
 
-# %%
-class SDTDataset(Dataset):
-    """A PyTorch dataset to load cell images and nuclei masks."""
-
-    def __init__(self, root_dir, transform=None, img_transform=None, return_mask=False):
-        self.root_dir = (
-            "/group/dl4miacourse/segmentation/" + root_dir
-        )  # the directory with all the training samples
-        self.samples = os.listdir(self.root_dir)  # list the samples
-        self.return_mask = return_mask
-        self.transform = (
-            transform  # transformations to apply to both inputs and targets
-        )
-        self.img_transform = img_transform  # transformations to apply to raw image only
-        #  transformations to apply just to inputs
-        inp_transforms = transforms.Compose(
-            [
-                transforms.Grayscale(),
-                transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
-            ]
-        )
-
-        self.loaded_imgs = [None] * len(self.samples)
-        self.loaded_masks = [None] * len(self.samples)
-        for sample_ind in tqdm(range(len(self.samples))):
-            img_path = os.path.join(
-                self.root_dir, self.samples[sample_ind], "image.tif"
-            )
-            image = tifffile.imread(img_path)
-            image.load()
-            self.loaded_imgs[sample_ind] = inp_transforms(image)
-            mask_path = os.path.join(
-                self.root_dir, self.samples[sample_ind], "label.tif"
-            )
-            mask = tifffile.imread(mask_path)
-            mask.load()
-            self.loaded_masks[sample_ind] = mask
-
-    # get the total number of samples
-    def __len__(self):
-        return len(self.samples)
-
-    # fetch the training sample given its index
-    def __getitem__(self, idx):
-        #  TODO: Modify this function to return an image and sdt pair
-        # add a call to the create sdt_target function somewhere below ... where is the challenge
-
-        # we'll be using the Pillow library for reading files
-        # since many torchvision transforms operate on PIL images
-        image = self.loaded_imgs[idx]
-        mask = self.loaded_masks[idx]
-        if self.transform is not None:
-            # Note: using seeds to ensure the same random transform is applied to
-            # the image and mask
-            seed = torch.seed()
-            torch.manual_seed(seed)
-            image = self.transform(image)
-            torch.manual_seed(seed)
-            mask = self.transform(mask)
-        if self.img_transform is not None:
-            image = self.img_transform(image)
-        if self.return_mask is True:
-            # want to be able to compare to true label for validation
-            return image, transforms.ToTensor()(mask), sdt
-        else:
-            # only need the image and sdt for training
-            return image, sdt
-
-    def create_sdt_target(self, mask):
-        # TODO: Fill in function
-        # make sure this function is returning a torch tensor
-        # chose a scale value to use here, it's fine to hard code it in
-
-        return
-
-
 # %% tags=["solution"]
 class SDTDataset(Dataset):
     """A PyTorch dataset to load cell images and nuclei masks."""
@@ -275,23 +180,26 @@ class SDTDataset(Dataset):
         )
         self.img_transform = img_transform  # transformations to apply to raw image only
         #  transformations to apply just to inputs
-        inp_transforms = transforms.Compose(
+        inp_transforms = v2.Compose(
             [
-                transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
+        to_img = v2.ToImage()
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = tifffile.imread(img_path)
+            image = to_img(tifffile.imread(img_path))
             image = image[0]
             self.loaded_imgs[sample_ind] = inp_transforms(image)
-            mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_nuclei_masks.tif")
-            mask = tifffile.imread(mask_path)
-            self.loaded_masks[sample_ind] = transforms.ToTensor()(mask)
+            mask_path = os.path.join(
+                self.root_dir, f"img_{sample_ind}_nuclei_masks.tif"
+            )
+            mask = to_img(tifffile.imread(mask_path))
+            self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
     def __len__(self):
@@ -321,7 +229,7 @@ class SDTDataset(Dataset):
 
     def create_sdt_target(self, mask):
         sdt_target_array = compute_sdt(mask)
-        sdt_target = transforms.ToTensor()(sdt_target_array)
+        sdt_target = v2.ToImage(sdt_target_array)
         return sdt_target.float()
 
 
@@ -331,7 +239,7 @@ class SDTDataset(Dataset):
 # Next, we will create a training dataset and data loader.
 # We will use `plot_two` (imported in the first cell) to verify that our dataset solution is correct. The output should show 2 images: the raw image and the corresponding SDT.
 # %%
-train_data = SDTDataset("tissuenet_data/train", transforms.RandomCrop(256))
+train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(256))
 train_loader = DataLoader(
     train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
 )
@@ -356,36 +264,7 @@ plot_two(img[0], sdt[0], label="SDT")
 #       - [tanh](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html#torch.nn.Tanh)
 #       - [relu](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html#torch.nn.ReLU)
 
-# %%
-# Initialize the model.
-# unet = UNet(
-#     in_channels=...,
-#     num_fmaps=...,
-#     num_fmaps_out=...,
-#     fmap_inc_factors=...,
-#     padding=...,
-#     downsample_factors=...,
-# )
 
-learning_rate = 1e-4
-
-# Choose a loss function.
-
-# Choose an optimizer.
-
-# Use the train function provided in local.py
-# to train the model for 20 epochs.
-
-# for epoch in range(20):
-#     train(
-#         model=...,
-#         loader=...,
-#         optimizer=...,
-#         loss_function=...,
-#         epoch=...,
-#         log_interval=10,
-#         device=device,
-#     )
 
 # %% tags=["solution"]
 unet = UNet(
@@ -453,17 +332,6 @@ plot_three(image, sdt, pred)
 # %% [markdown]
 # <u>Hint</u>: Look at the imports. <br>
 # <u>Hint</u>: It is possible to write this function by only adding 2 lines.
-# %%
-from scipy.ndimage import label, maximum_filter
-
-
-def find_local_maxima(distance_transform, min_dist_between_points):
-    # Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
-
-    # Uniquely label the local maxima
-    seeds, n = label(...)
-
-    return seeds, n
 
 
 # %% tags=["solution"]
@@ -525,7 +393,9 @@ def get_inner_mask(pred, threshold):
 # <b>Task 2.2</b>: <br> Use the model to generate a predicted SDT and then use the watershed function we defined above to get post-process into a segmentation
 # </div>
 
-# %%
+
+
+# %% tags=["solution"]
 idx = np.random.randint(len(val_data))  # take a random sample
 image, mask = val_data[idx]  # get the image and the nuclei masks
 
@@ -533,24 +403,6 @@ image, mask = val_data[idx]  # get the image and the nuclei masks
 # Hint: make sure set the model to evaluation
 # Hint: check the dims of the image, remember they should be [batch, channels, x, y]
 # Hint: remember to move model outputs to the cpu and check their dimensions (as you did in task 1.3 visualization)
-pred = ...
-
-# Choose a threshold value to use to get the boundary mask
-thresh = ...
-
-# Get inner mask
-inner_mask = ...
-
-# Get the segmentation
-# seg = watershed_from_boundary_distance(...)
-seg = ...
-
-
-# %% tags=["solution"]
-idx = np.random.randint(len(val_data))  # take a random sample
-image, mask = val_data[idx]  # get the image and the nuclei masks
-
-# Hint: make sure set the model to evaluation
 unet.eval()
 
 image = image.to(device)
@@ -688,22 +540,23 @@ class AffinityDataset(Dataset):
         )
         self.img_transform = img_transform  # transformations to apply to raw image only
         #  transformations to apply just to inputs
-        inp_transforms = transforms.Compose(
+        inp_transforms = v2.Compose(
             [
-                transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
+                v2.ToImage(),
+                v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
+        to_img = v2.ToImage()
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = tifffile.imread(img_path)
+            image = to_img(tifffile.imread(img_path))
             image = image[0] - image[1]
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = tifffile.imread(mask_path)
+            mask = to_img(tifffile.imread(mask_path))
             mask.load()
             self.loaded_masks[sample_ind] = mask
 
@@ -729,7 +582,7 @@ class AffinityDataset(Dataset):
         if self.img_transform is not None:
             image = self.img_transform(image)
         if self.return_mask is True:
-            return image, transforms.ToTensor()(mask), aff_mask
+            return image, mask, aff_mask
         else:
             return image, aff_mask
 
@@ -744,7 +597,7 @@ class AffinityDataset(Dataset):
 # %%
 # Initialize the datasets
 
-train_data = AffinityDataset("tissuenet_data/train", transforms.RandomCrop(256))
+train_data = AffinityDataset("tissuenet_data/train", v2.RandomCrop(256))
 train_loader = DataLoader(
     train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
 )
@@ -761,22 +614,6 @@ plot_two(img[0], affinity[0] + affinity[1], label="AFFINITY")
 # Think carefully about your final activation and number of out channels. <br>
 # (The best for SDT is not necessarily the best for affinities.)
 
-# %%
-# define the model
-unet = UNet(
-    depth=...,
-    in_channels=...,
-    downsample_factor=...,
-    final_activation=...,
-    out_channels=...,
-)
-
-learning_rate = 1e-4
-# specify loss
-
-# specify optimizer
-
-# add training loop
 
 
 # %% tags=["solution"]
@@ -814,7 +651,7 @@ for epoch in range(20):
 # Let's next look at a prediction on a random image.
 
 # %%
-val_data = AffinityDataset("tissuenet_data/test", transforms.RandomCrop(256))
+val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(256))
 val_loader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=8)
 
 unet.eval()
