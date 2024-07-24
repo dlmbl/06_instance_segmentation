@@ -332,7 +332,9 @@ class SDTDataset(Dataset):
 # We will use `plot_two` (imported in the first cell) to verify that our dataset solution is correct. The output should show 2 images: the raw image and the corresponding SDT.
 # %%
 train_data = SDTDataset("tissuenet_data/train", transforms.RandomCrop(256))
-train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS)
+train_loader = DataLoader(
+    train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
+)
 
 idx = np.random.randint(len(train_data))  # take a random sample
 img, sdt = train_data[idx]  # get the image and the nuclei masks
@@ -391,7 +393,7 @@ unet = UNet(
     in_channels=1,
     out_channels=1,
     final_activation=torch.nn.Tanh(),
-    num_fmaps=4,
+    num_fmaps=16,
     fmap_inc_factor=3,
     downsample_factor=2,
     padding="same",
@@ -401,7 +403,7 @@ learning_rate = 1e-4
 loss = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
 
-for epoch in range(20):
+for epoch in range(40):
     train(
         unet,
         train_loader,
@@ -612,7 +614,9 @@ from local import evaluate
 
 # Need to re-initialize the dataloader to return masks in addition to SDTs.
 val_dataset = SDTDataset("tissuenet_data/test", return_mask=True)
-val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS)
+val_dataloader = DataLoader(
+    val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS
+)
 unet.eval()
 
 (
@@ -741,7 +745,9 @@ class AffinityDataset(Dataset):
 # Initialize the datasets
 
 train_data = AffinityDataset("tissuenet_data/train", transforms.RandomCrop(256))
-train_loader = DataLoader(train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS)
+train_loader = DataLoader(
+    train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
+)
 idx = np.random.randint(len(train_data))  # take a random sample
 img, affinity = train_data[idx]  # get the image and the nuclei masks
 plot_two(img[0], affinity[0] + affinity[1], label="AFFINITY")
@@ -827,7 +833,9 @@ plot_three(image, mask[0] + mask[1], pred[0] + pred[1], label="Affinity")
 
 # %%
 val_dataset = AffinityDataset("tissuenet_data/test", return_mask=True)
-val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS)
+val_loader = DataLoader(
+    val_dataset, batch_size=1, shuffle=False, num_workers=NUM_THREADS
+)
 unet.eval()
 
 (
