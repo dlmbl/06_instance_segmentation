@@ -1,13 +1,13 @@
 # Create environment name based on the exercise name
-mamba create -n 04-instance-segmentation python=3.11 -y
-mamba activate 04-instance-segmentation
+conda create -n 04-instance-segmentation python=3.11 -y
+conda activate 04-instance-segmentation
 
 # Install additional requirements
 pip install uv
 uv pip install -r requirements.txt
 
 # Return to base environment
-mamba deactivate
+conda deactivate
 
 # Download and extract data, etc.
 echo -e "\n downloading data...\n"
