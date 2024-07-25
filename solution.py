@@ -63,7 +63,7 @@ from skimage.filters import threshold_otsu
 # this should be optimized for the compute nodes once available.
 device = "cpu"  # 'cuda', 'cpu', 'mps'
 NUM_THREADS = 0
-NUM_EPOCHS = 2
+NUM_EPOCHS = 20
 # make sure gpu is available. Please call a TA if this cell fails
 # assert torch.cuda.is_available()
 
