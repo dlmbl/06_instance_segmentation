@@ -21,11 +21,21 @@
 #   2) post-processable into an instance segmentation
 #
 # In this exercise we will go over two common intermediate targets (signed distance transform and affinities),
-# as well as the necessary post-processing for obtaining the final segmentations.
+# as well as the necessary pre and post-processing for obtaining the final segmentations.
+#
+# At the end of the exercise we will also compare to a pre-trained cellpose model.
+
+# %% [markdown]
+# <div class="alert alert-block alert-danger">
+# <b>Conda Kernel</b>: Please use the kernel `04-instance-segmentation` for this exercise
+# </div>
+
+# %% [markdown]
+# ## Section 0: Imports and Setup
 
 # %%
+# Set start method for MacOS
 import multiprocessing
-
 multiprocessing.set_start_method("fork", force=True)
 
 # %% [markdown]
@@ -49,6 +59,8 @@ from skimage.filters import threshold_otsu
 
 
 # %%
+# Set some variables that are specific to the hardware being run on
+# this should be optimized for the compute nodes once available.
 device = "cpu"  # 'cuda', 'cpu', 'mps'
 NUM_THREADS = 0
 NUM_EPOCHS = 2
@@ -56,8 +68,9 @@ NUM_EPOCHS = 2
 # assert torch.cuda.is_available()
 
 # %%
+# TODO: Create a colormap to use.
 # Fetch a custom label color map for showing instances
-# label_cmap = ListedColormap(np.load("/group/dl4miacourse/segmentation/cmap_60.npy"))
+# label_cmap = ListedColormap(np.load("path/to/cmap.npy"))
 
 # %% [markdown]
 # ## Section 1: Signed Distance Transform (SDT)
@@ -75,35 +88,26 @@ NUM_EPOCHS = 2
 # ![image](static/04_instance_sdt.png)
 #
 
-# %% [markdown]
-# <div class="alert alert-block alert-info">
-# <b>Task 1.1</b>: Write a function to compute the signed distance transform.
-# </div>
-
-
-# %% tags=["solution"]
-# Write a function to calculate SDT.
-# (Hint: Use `distance_transform_edt` and `binary_erosion` which are imported in the first cell.)
-
+# %%
 
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
     dims = len(labels.shape)
     distances = np.ones(labels.shape, dtype=np.float32) * np.inf
     for axis in range(dims):
-        affs = (
+        bounds = (
             labels[*[slice(None) if a != axis else slice(1, None) for a in range(dims)]]
             == labels[
                 *[slice(None) if a != axis else slice(None, -1) for a in range(dims)]
             ]
         )
-        affs = np.pad(
-            affs,
+        bounds = np.pad(
+            bounds,
             [(1, 1) if a == axis else (0, 0) for a in range(dims)],
             mode="constant",
             constant_values=1,
         )
-        axis_distances = distance_transform_edt(affs)
+        axis_distances = distance_transform_edt(bounds)
 
         coordinates = np.meshgrid(
             *[
@@ -126,6 +130,34 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
     distances[labels == 0] *= -1
     return distances
 
+# %% [markdown]
+# <div class="alert alert-block alert-info">
+# <b>Task 1.1</b>: Explain the `compute_sdt` from the cell above.
+# </div>
+
+
+# %% [markdown] tags=["task"]
+# 1. _Why do we need to loop over dimensions?_
+#
+# 2. _What is the purpose of the pad?_
+# 
+# 3. _What does meshgrid do?_
+# 
+# 4. _Why do we use `map_coordinates`?_
+
+# %% [markdown] tags=["solution"]
+# 1. _Why do we need to loop over dimensions?_
+# To get the distance to boundaries in each axis
+# 
+# 2. _What is the purpose of the pad?_
+# We lose a pixel when we compute the boundaries so we need to pad to cover the whole input image.</li>
+# 
+# 3. _What does meshgrid do?_
+# It computes the index coordinate of every voxel. Offset by half on the dimension along which we computed boundaries because the boundaries sit half way between the voxels on either side of the boundary</li>
+# 
+# 4. _Why do we use `map_coordinates`?_
+# To interpolate the distance values at the half pixel offset for the boundaries</li>
+
 
 # %% [markdown]
 # Below is a small function to visualize the signed distance transform (SDT). <br> Use it to validate your function.
@@ -142,24 +174,28 @@ label = tifffile.imread(
 sdt = compute_sdt(label)
 plot_two(img[0], sdt, label="SDT")
 
+# %% [markdown]
+# <div class="alert alert-block alert-info">
+# <b>Task 1.2</b>: Explain the scale parameter.
+# </div>
 
 # %% [markdown] tas=["task"]
 # <b>Questions</b>:
-# 1. _Why do we need to normalize the distances between -1 and 1_?
+# 1. _Why do we need to normalize the distances between -1 and 1?_
 #
-# 2. _What is the effect of changing the scale value? What do you think is a good default value_?
+# 2. _What is the effect of changing the scale value? What do you think is a good default value?_
 #
 
 # %% [markdown] tags=["solution"]
 # <b>Questions</b>:
-# 1. Why do we need to normalize the distances between -1 and 1? <br>
+# 1. _Why do we need to normalize the distances between -1 and 1?_
 #   It allows for better targets for the model and enables better training.<br>
-# 2. What is the effect of changing the scale value? What do you think is a good default value?<br>
+# 2. _What is the effect of changing the scale value? What do you think is a good default value?_
 #   Increasing the scale is equivalent to having a wider boundary region.
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 1.2</b>: <br>
+# <b>Task 1.3</b>: <br>
 #     Modify the `SDTDataset` class below to produce the paired raw and SDT images.<br>
 #   1. Use the `compute_sdt` function we just wrote above, to fill in the `create_sdt_target` method below.<br>
 #   2. Modify the `__get_item__` method to return an SDT output rather than a label mask.<br>
@@ -167,6 +203,66 @@ plot_two(img[0], sdt, label="SDT")
 #       - Think about the order in which transformations are applied to the mask/SDT.<br>
 # </div>
 
+# %% tags=["task"]
+class SDTDataset(Dataset):
+    """A PyTorch dataset to load cell images and nuclei masks."""
+
+    def __init__(self, root_dir, transform=None, img_transform=None, return_mask=False):
+        self.root_dir = root_dir  # the directory with all the training samples
+        self.num_samples = len(os.listdir(self.root_dir)) // 3  # list the samples
+        self.return_mask = return_mask
+        self.transform = (
+            transform  # transformations to apply to both inputs and targets
+        )
+        self.img_transform = img_transform  # transformations to apply to raw image only
+        #  transformations to apply just to inputs
+        inp_transforms = v2.Compose(
+            [
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
+            ]
+        )
+        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
+
+        self.loaded_imgs = [None] * self.num_samples
+        self.loaded_masks = [None] * self.num_samples
+        for sample_ind in tqdm(range(self.num_samples)):
+            img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
+            image = self.to_img(tifffile.imread(img_path))
+            self.loaded_imgs[sample_ind] = inp_transforms(image)
+            mask_path = os.path.join(
+                self.root_dir, f"img_{sample_ind}_nuclei_masks.tif"
+            )
+            mask = self.to_img(tifffile.imread(mask_path))
+            self.loaded_masks[sample_ind] = mask
+
+    # get the total number of samples
+    def __len__(self):
+        return self.num_samples
+
+    # fetch the training sample given its index
+    def __getitem__(self, idx):
+        # We'll be using the Pillow library for reading files
+        # since many torchvision transforms operate on PIL images
+        image = self.loaded_imgs[idx]
+        mask = self.loaded_masks[idx]
+        if self.transform is not None:
+            # Note: using seeds to ensure the same random transform is applied to
+            # the image and mask
+            seed = torch.seed()
+            torch.manual_seed(seed)
+            image = self.transform(image)
+            torch.manual_seed(seed)
+            mask = self.transform(mask)
+        
+        # use the compute_sdt function to get the sdt
+        sdt = ...
+        if self.img_transform is not None:
+            image = self.img_transform(image)
+        if self.return_mask is True:
+            return image, mask.unsqueeze(0), sdt.unsqueeze(0)
+        else:
+            return image, sdt.unsqueeze(0)
 
 # %% tags=["solution"]
 class SDTDataset(Dataset):
@@ -251,7 +347,7 @@ plot_two(img[1], sdt[0], label="SDT")
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 1.3</b>: Train the U-Net.
+# <b>Task 1.4</b>: Train the U-Net.
 # </div>
 # %% [markdown]
 # In this task, initialize the UNet, specify a loss function, learning rate, and optimizer, and train the model.<br>
@@ -264,6 +360,24 @@ plot_two(img[1], sdt[0], label="SDT")
 #       - [tanh](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html#torch.nn.Tanh)
 #       - [relu](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html#torch.nn.ReLU)
 
+# %% tags=["task"]
+# If you manage to get a loss close to 0.1, you are doing pretty well and can probably move on
+unet = ...
+
+learning_rate = ...
+loss = ...
+optimizer = ...
+
+for epoch in range(NUM_EPOCHS):
+    train(
+        model=...,
+        loader=...,
+        optimizer=...,
+        loss_function=...,
+        epoch=...,
+        log_interval=2,
+        device=device,
+    )
 
 # %% tags=["solution"]
 unet = UNet(
@@ -288,7 +402,7 @@ for epoch in range(NUM_EPOCHS):
         optimizer,
         loss,
         epoch,
-        log_interval=10,
+        log_interval=2,
         device=device,
     )
 
@@ -332,6 +446,17 @@ plot_three(image[0], sdt, pred)
 # <u>Hint</u>: Look at the imports. <br>
 # <u>Hint</u>: It is possible to write this function by only adding 2 lines.
 
+# %% tags=["task"]
+from scipy.ndimage import label, maximum_filter
+
+
+def find_local_maxima(distance_transform, min_dist_between_points):
+
+    # Hint: Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
+
+    seeds, number_of_seeds = ...
+
+    return seeds, number_of_seeds
 
 # %% tags=["solution"]
 from scipy.ndimage import label, maximum_filter
@@ -392,6 +517,32 @@ def get_inner_mask(pred, threshold):
 # <b>Task 2.2</b>: <br> Use the model to generate a predicted SDT and then use the watershed function we defined above to get post-process into a segmentation
 # </div>
 
+# %% tags=["task"]
+idx = np.random.randint(len(val_data))  # take a random sample
+image, mask = val_data[idx]  # get the image and the nuclei masks
+
+# get the model prediction
+# Hint: make sure set the model to evaluation
+# Hint: check the dims of the image, remember they should be [batch, channels, x, y]
+# Hint: remember to move model outputs to the cpu and check their dimensions (as you did in task 1.4 visualization)
+unet.eval()
+
+# remember to move the image to the device
+pred = ...
+
+# turn image, mask, and pred into plain numpy arrays
+
+# Choose a threshold value to use to get the boundary mask.
+# Feel free to play around with the threshold.
+# hint: If you're struggling to find a good threshold, you can use the `threshold_otsu` function
+
+threshold = ...
+
+# Get inner mask
+inner_mask = get_inner_mask(pred, threshold=threshold)
+
+# Get the segmentation
+seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
 
 # %% tags=["solution"]
 idx = np.random.randint(len(val_data))  # take a random sample
@@ -400,7 +551,7 @@ image, mask = val_data[idx]  # get the image and the nuclei masks
 # get the model prediction
 # Hint: make sure set the model to evaluation
 # Hint: check the dims of the image, remember they should be [batch, channels, x, y]
-# Hint: remember to move model outputs to the cpu and check their dimensions (as you did in task 1.3 visualization)
+# Hint: remember to move model outputs to the cpu and check their dimensions (as you did in task 1.4 visualization)
 unet.eval()
 
 image = image.to(device)
@@ -428,9 +579,21 @@ seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
 plot_four(image[0], mask, pred, seg, label="Target")
 
 # %% [markdown]
+# <div class="alert alert-block alert-info">
+# <b>Task 2.3</b>: <br> Min Seed Distance
+# </div>
+
+# %% [markdown] tags=["task"]
 # Questions:
 # 1. What is the effect of the `min_seed_distance` parameter in watershed?
 #       - Experiment with different values.
+
+# %% [markdown] tags=["solution"]
+# Questions:
+# 1. What is the effect of the `min_seed_distance` parameter in watershed?
+#       - Experiment with different values.
+#
+# The `min_seed_distance` parameter is used to filter out local maxima that are too close to each other. This can be useful to prevent oversegmentation. If the value is too high, you may miss some local maxima, leading to undersegmentation. If the value is too low, you may get too many local maxima, leading to oversegmentation.
 
 # %% [markdown]
 # <div class="alert alert-block alert-success">
@@ -448,12 +611,20 @@ plot_four(image[0], mask, pred, seg, label="Target")
 # <div class="alert alert-block alert-info">
 # <b>Task 3.1</b>: Pick the best metric to use
 # </div>
-# %% [markdown]
+# %% [markdown] tags=["task"]
 # Which of the following should we use for our dataset?:
 #   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
 #   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
 #   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
 #
+
+# %% [markdown] tags=["solution"]
+# Which of the following should we use for our dataset?:
+#   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
+#   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
+#   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
+#
+# We will use Accuracy, Precision, and Recall as our evaluation metrics. IoU is also a good metric to use, but it is more commonly used for semantic segmentation tasks.
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
@@ -609,6 +780,14 @@ plot_two(img[0], affinity[0] + affinity[1], label="AFFINITY")
 # Think carefully about your final activation and number of out channels. <br>
 # (The best for SDT is not necessarily the best for affinities.)
 
+# %% tags=["task"]
+
+unet = ...
+learning_rate = ...
+loss = ...
+optimizer = ...
+
+# train
 
 # %% tags=["solution"]
 
@@ -637,7 +816,7 @@ for epoch in range(NUM_EPOCHS):
         optimizer,
         loss,
         epoch,
-        log_interval=100,
+        log_interval=2,
         device=device,
     )
 
