@@ -142,23 +142,23 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 # 1. _Why do we need to loop over dimensions?_
 #
 # 2. _What is the purpose of the pad?_
-# 
+#
 # 3. _What does meshgrid do?_
-# 
+#
 # 4. _Why do we use `map_coordinates`?_
 
 # %% [markdown] tags=["solution"]
 # 1. _Why do we need to loop over dimensions?_
 # To get the distance to boundaries in each axis
-# 
+#
 # 2. _What is the purpose of the pad?_
 # We lose a pixel when we compute the boundaries so we need to pad to cover the whole input image.</li>
-# 
+#
 # 3. _What does meshgrid do?_
 # It computes the index coordinate of every voxel. Offset by half on the dimension along which we computed boundaries because the boundaries sit half way between the voxels on either side of the boundary</li>
-# 
+#
 # 4. _Why do we use `map_coordinates`?_
-# To interpolate the distance values at the half pixel offset for the boundaries</li>
+# Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation</li>
 
 
 # %% [markdown]
