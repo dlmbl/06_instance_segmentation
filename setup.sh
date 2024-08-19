@@ -14,6 +14,6 @@ echo -e "\n downloading data...\n"
 aws s3 cp "s3://dl-at-mbl-2023-data/woodshole_new.zip" "." --no-sign-request
 unzip woodshole_new.zip
 mkdir woodshole
-mv woodshole_new/* woodshole
+mv woodshole_new/* tissuenet_data
 rm woodshole_new.zip
 rm -r woodshole_new
