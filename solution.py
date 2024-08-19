@@ -191,7 +191,7 @@ plot_two(img[0], sdt, label="SDT")
 # %% [markdown] tags=["solution"]
 # <b>Questions</b>:
 # 1. _Why do we need to normalize the distances between -1 and 1?_
-#   It allows for better targets for the model and enables better training.<br>
+#   If the closest object to a pixel is outside the receptive field, the model cannot know whether the distance is 100 or 100_000. Squeezing large distances down to 1 or -1 makes the answer less ambiguous.<br>
 # 2. _What is the effect of changing the scale value? What do you think is a good default value?_
 #   Increasing the scale is equivalent to having a wider boundary region.
 
@@ -199,11 +199,11 @@ plot_two(img[0], sdt, label="SDT")
 # <div class="alert alert-block alert-info">
 # <b>Task 1.3</b>: <br>
 #     Modify the `SDTDataset` class below to produce the paired raw and SDT images.<br>
-#   1. Use the `compute_sdt` function we just wrote above, to fill in the `create_sdt_target` method below.<br>
-#   2. Modify the `__get_item__` method to return an SDT output rather than a label mask.<br>
+#   1. Modify the `__getitem__` method to return an SDT output rather than a label mask.<br>
 #       - Ensure that all final outputs are of torch tensor type.<br>
 #       - Think about the order in which transformations are applied to the mask/SDT.<br>
 # </div>
+
 
 # %% tags=["task"]
 class SDTDataset(Dataset):
