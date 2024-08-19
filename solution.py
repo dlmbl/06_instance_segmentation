@@ -36,6 +36,7 @@
 # %%
 # Set start method for MacOS
 import multiprocessing
+
 multiprocessing.set_start_method("fork", force=True)
 
 # %% [markdown]
@@ -68,9 +69,10 @@ NUM_EPOCHS = 20
 # assert torch.cuda.is_available()
 
 # %%
-# TODO: Create a colormap to use.
-# Fetch a custom label color map for showing instances
-# label_cmap = ListedColormap(np.load("path/to/cmap.npy"))
+# Create a custom label color map for showing instances
+np.random.seed(1)
+colors = [[0,0,0]] + [list(np.random.choice(range(256), size=3)) for _ in range(254)]
+label_cmap = ListedColormap(colors)
 
 # %% [markdown]
 # ## Section 1: Signed Distance Transform (SDT)
@@ -575,8 +577,7 @@ seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
 # %%
 # Visualize the results
 
-# plot_four(image, mask, pred, seg, label="Target", cmap=label_cmap)
-plot_four(image[0], mask, pred, seg, label="Target")
+plot_four(image[0], mask, pred, seg, label="Target", cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
