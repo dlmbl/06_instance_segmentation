@@ -10,7 +10,7 @@
 #
 # | Image | Mask 1| Mask 2|
 # | :-: | :-: | :-: |
-# | ![image](static/01_instance_img.png) | ![mask1](static/02_instance_teaser.png) | ![mask2](static/03_instance_teaser.png) |
+# | ![image](static/figure1/01_instance_image.png) | ![mask1](static/figure1/02_instance_teaser.png) | ![mask2](static/figure1/03_instance_teaser.png) |
 #
 # Once again: THE SPECIFIC VALUES OF THE LABELS ARE ARBITRARY
 #
