@@ -58,6 +58,7 @@ import tifffile
 import mwatershed as mws
 
 from skimage.filters import threshold_otsu
+from skimage.morphology import remove_small_objects
 
 
 # %%
@@ -885,7 +886,7 @@ unet = UNet(
 learning_rate = 1e-4
 
 # choose a loss function
-loss = torch.nn.MSELoss(reduce=False)
+loss = torch.nn.BCELoss(reduce=False)
 
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
 
@@ -908,17 +909,18 @@ for epoch in range(NUM_EPOCHS):
 # Let's next look at a prediction on a random image.
 
 # %%
-val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(256))
+val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(256), return_mask=True)
 val_loader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=8)
 
 unet.eval()
 idx = np.random.randint(len(val_data))  # take a random sample
-image, affs = val_data[idx]  # get the image and the nuclei masks
+image, gt, affs = val_data[idx]  # get the image and the nuclei masks
 image = image.to(device)
 pred = torch.squeeze(unet(torch.unsqueeze(image, dim=0)))
 image = image.cpu()
 affs = affs.cpu().numpy()
 pred = pred.cpu().detach().numpy()
+gt_labels = gt.cpu().numpy()
 
 bias_short = -0.9
 bias_long = -0.95
@@ -935,8 +937,11 @@ pred_labels = mws.agglom(
     [[0, 1], [1, 0], [0, 5], [5, 0]],
 )
 
-plot_four(image, affs, pred, pred_labels, label="Affinity")
-
+plot_four(image, affs, pred, pred_labels, label="Affinity", cmap=label_cmap)
+print(evaluate(gt_labels, pred_labels))
+pred_labels = remove_small_objects(pred_labels.astype(np.int64), min_size=64, connectivity=1)
+print(evaluate(gt_labels, pred_labels))
+plot_four(image, affs, pred, pred_labels, label="Affinity", cmap=label_cmap)
 # %% [markdown]
 # Let's also evaluate the model performance.
 
