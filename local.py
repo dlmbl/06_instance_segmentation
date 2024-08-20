@@ -22,9 +22,7 @@ class NucleiDataset(Dataset):
     """A PyTorch dataset to load cell images and nuclei masks"""
 
     def __init__(self, root_dir, transform=None, img_transform=None):
-        self.root_dir = (
-            root_dir
-        )  # the directory with all the training samples
+        self.root_dir = root_dir  # the directory with all the training samples
         self.samples = os.listdir(self.root_dir)  # list the samples
         self.transform = (
             transform  # transformations to apply to both inputs and targets
@@ -129,7 +127,6 @@ def show_random_augmentation_comparison(dataset_a, dataset_b):
 
 
 def apply_and_show_random_image(f, ds):
-
     # pick random raw image from dataset
     img_tensor = ds[np.random.randint(len(ds))][0]
 
@@ -209,8 +206,13 @@ def train(
     model = model.to(device)
 
     # iterate over the batches of this epoch
-    for batch_id, (x, y) in enumerate(loader):
+    for batch_id, (x, y, *w) in enumerate(loader):
         # move input and target to the active device (either cpu or gpu)
+        if len(w) > 0:
+            w = w[0]
+            w = w.to(device)
+        else:
+            w = None
         x, y = x.to(device), y.to(device)
 
         # zero the gradients for this iteration
@@ -222,6 +224,9 @@ def train(
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
+        if w is not None:
+            weighted_loss = loss * w
+            loss = torch.mean(weighted_loss)
 
         # backpropagate the loss and adjust the parameters
         loss.backward()
@@ -313,7 +318,6 @@ def plot_receptive_field(unet, npseed=10, path="nuclei_train_data"):
 
 
 def compute_affinities(seg: np.ndarray, nhood: list):
-
     nhood = np.array(nhood)
 
     shape = seg.shape
@@ -416,59 +420,93 @@ def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray, th: float = 0.5):
     return precision, recall, accuracy
 
 
-def plot_two(img: np.ndarray, sdt: np.ndarray, label: str):
+def plot_two(img: np.ndarray, intermediate: np.ndarray, label: str):
     """
     Helper function to plot an image and the auxiliary (intermediate)
     representation of the target.
     """
+    if img.shape[0] == 2 and len(img.shape) == 3:
+        img = np.array([img[0], img[1], img[0] * 0]).transpose((1, 2, 0))
+    if intermediate.shape[0] == 4 and len(intermediate.shape) == 3:
+        intermediate = np.array(
+            [
+                (intermediate[0] + intermediate[2]) / 2,
+                (intermediate[1] + intermediate[3]) / 2,
+                intermediate.sum(axis=0) > 0,  # any affinity is 1
+            ]
+        ).transpose((1, 2, 0))
     fig = plt.figure(constrained_layout=False, figsize=(10, 3))
     spec = gridspec.GridSpec(ncols=2, nrows=1, figure=fig)
     ax1 = fig.add_subplot(spec[0, 0])
     ax1.set_xlabel("Image", fontsize=20)
-    plt.imshow(img, cmap="magma")
+    plt.imshow(img)
     ax2 = fig.add_subplot(spec[0, 1])
     ax2.set_xlabel(label, fontsize=20)
-    t = plt.imshow(sdt, cmap="magma")
-    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
-    tick_locator = ticker.MaxNLocator(nbins=3)
-    cbar.locator = tick_locator
-    cbar.update_ticks()
-    _ = [ax.set_xticks([]) for ax in [ax1, ax2]]
-    _ = [ax.set_yticks([]) for ax in [ax1, ax2]]
+    if len(intermediate.shape) == 2:
+        t = plt.imshow(intermediate, cmap="coolwarm")
+        cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
+        tick_locator = ticker.MaxNLocator(nbins=3)
+        cbar.locator = tick_locator
+        cbar.update_ticks()
+        _ = [ax.set_xticks([]) for ax in [ax1, ax2]]
+        _ = [ax.set_yticks([]) for ax in [ax1, ax2]]
+    elif len(intermediate.shape) == 3:
+        plt.imshow(intermediate)
+
     plt.tight_layout()
     plt.show()
 
 
 def plot_three(
-    image: np.ndarray, intermediate: np.ndarray, pred: np.ndarray, label: str = "Target"
+    img: np.ndarray, intermediate: np.ndarray, pred: np.ndarray, label: str = "Target"
 ):
     """
     Helper function to plot an image, the auxiliary (intermediate)
     representation of the target and the model prediction.
     """
+    if img.shape[0] == 2 and len(img.shape) == 3:
+        img = np.array([img[0], img[1], img[0] * 0]).transpose((1, 2, 0))
+    if intermediate.shape[0] == 4 and len(intermediate.shape) == 3:
+        intermediate = np.array(
+            [
+                (intermediate[0] + intermediate[2]) / 2,
+                (intermediate[1] + intermediate[3]) / 2,
+                intermediate.sum(axis=0) > 0,  # any affinity is 1
+            ]
+        ).transpose((1, 2, 0))
+    if pred.shape[0] == 4 and len(pred.shape) == 3:
+        pred = np.array(
+            [(pred[0] + pred[2]) / 2, (pred[1] + pred[3]) / 2, pred.mean(axis=0)]
+        ).transpose((1, 2, 0))
     fig = plt.figure(constrained_layout=False, figsize=(10, 3))
     spec = gridspec.GridSpec(ncols=3, nrows=1, figure=fig)
     ax1 = fig.add_subplot(spec[0, 0])
     ax1.set_xlabel("Image", fontsize=20)
-    plt.imshow(image, cmap="magma")
+    plt.imshow(img)
     ax2 = fig.add_subplot(spec[0, 1])
     ax2.set_xlabel(label, fontsize=20)
-    plt.imshow(intermediate, cmap="magma")
+    if len(intermediate.shape) == 2:
+        plt.imshow(intermediate, cmap="coolwarm")
+    else:
+        plt.imshow(intermediate)
     ax3 = fig.add_subplot(spec[0, 2])
     ax3.set_xlabel("Prediction", fontsize=20)
-    t = plt.imshow(pred, cmap="magma")
-    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
-    tick_locator = ticker.MaxNLocator(nbins=3)
-    cbar.locator = tick_locator
-    cbar.update_ticks()
-    _ = [ax.set_xticks([]) for ax in [ax1, ax2, ax3]]  # remove the xticks
-    _ = [ax.set_yticks([]) for ax in [ax1, ax2, ax3]]  # remove the yticks
+    if len(pred.shape) == 2:
+        t = plt.imshow(pred, cmap="coolwarm")
+        cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
+        tick_locator = ticker.MaxNLocator(nbins=3)
+        cbar.locator = tick_locator
+        cbar.update_ticks()
+        _ = [ax.set_xticks([]) for ax in [ax1, ax2, ax3]]  # remove the xticks
+        _ = [ax.set_yticks([]) for ax in [ax1, ax2, ax3]]  # remove the yticks
+    else:
+        plt.imshow(pred)
     plt.tight_layout()
     plt.show()
 
 
 def plot_four(
-    image: np.ndarray,
+    img: np.ndarray,
     intermediate: np.ndarray,
     pred: np.ndarray,
     seg: np.ndarray,
@@ -480,21 +518,41 @@ def plot_four(
     representation of the target, the model prediction and the predicted segmentation mask.
     """
 
+    if img.shape[0] == 2 and len(img.shape) == 3:
+        img = np.array([img[0], img[1], img[0] * 0]).transpose((1, 2, 0))
+    if intermediate.shape[0] == 4 and len(intermediate.shape) == 3:
+        intermediate = np.array(
+            [
+                (intermediate[0] + intermediate[2]) / 2,
+                (intermediate[1] + intermediate[3]) / 2,
+                intermediate.sum(axis=0) > 0,  # any affinity is 1
+            ]
+        ).transpose((1, 2, 0))
+    if pred.shape[0] == 4 and len(pred.shape) == 3:
+        pred = np.array(
+            [(pred[0] + pred[2]) / 2, (pred[1] + pred[3]) / 2, pred.mean(axis=0)]
+        ).transpose((1, 2, 0))
     fig = plt.figure(constrained_layout=False, figsize=(10, 3))
     spec = gridspec.GridSpec(ncols=4, nrows=1, figure=fig)
     ax1 = fig.add_subplot(spec[0, 0])
-    ax1.imshow(image)  # show the image
+    ax1.imshow(img)  # show the image
     ax1.set_xlabel("Image", fontsize=20)
     ax2 = fig.add_subplot(spec[0, 1])
-    ax2.imshow(intermediate)  # show the masks
+    if len(intermediate.shape) == 2:
+        ax2.imshow(intermediate, cmap="coolwarm")
+    else:
+        ax2.imshow(intermediate)
     ax2.set_xlabel(label, fontsize=20)
     ax3 = fig.add_subplot(spec[0, 2])
-    t = ax3.imshow(pred)
+    if len(pred.shape) == 2:
+        t = ax3.imshow(pred, cmap="coolwarm")
+        tick_locator = ticker.MaxNLocator(nbins=3)
+        cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
+        cbar.locator = tick_locator
+        cbar.update_ticks()
+    else:
+        ax3.imshow(pred)
     ax3.set_xlabel("Pred.", fontsize=20)
-    tick_locator = ticker.MaxNLocator(nbins=3)
-    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
-    cbar.locator = tick_locator
-    cbar.update_ticks()
     ax4 = fig.add_subplot(spec[0, 3])
     ax4.imshow(seg, cmap=cmap, interpolation="none")
     ax4.set_xlabel("Seg.", fontsize=20)
