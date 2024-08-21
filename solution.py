@@ -79,21 +79,23 @@ label_cmap = ListedColormap(colors)
 # %% [markdown]
 # ## Section 1: Signed Distance Transform (SDT)
 #
-# First we will use the signed distance transform as an intermediate learning objective
+# First, we will use the signed distance transform as an intermediate learning objective.
 #
 # <i>What is the signed distance transform?</i>
-# <br>  - Signed Distance Transform indicates the distance from each specific pixel to the boundary of objects.
+# <br>  - The Signed Distance Transform indicates the distance from each specific pixel to the boundary of objects.
 # <br>  - It is positive for pixels inside objects and negative for pixels outside objects (i.e. in the background).
-# <br>  - Remember that deep learning models work best with normalized values, therefore it is important the scale the distance
-#            transform. For simplicity things are often scaled between -1 and 1.
+# <br>  - Remember that deep learning models work best with normalized values, therefore it is important to scale the distance
+#            transform. For simplicity, things are often scaled between -1 and 1.
 # <br>  - As an example, here, you see the SDT (right) of the target mask (middle), below.
 
 # %% [markdown]
 # ![image](static/figure2/04_instance_sdt.png)
 #
 
-# %%
+# %% [markdown]
+# We will now add the code for preparing our data to learn the signed distance transform.
 
+# %%
 
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
@@ -101,7 +103,7 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
     # Create a placeholder array of infinite distances
     distances = np.ones(labels.shape, dtype=np.float32) * np.inf
     for axis in range(dims):
-        # Here we compute the boundaries by shifting the labels and comparing to the original
+        # Here we compute the boundaries by shifting the labels and comparing to the original labels
         # This can be visualized in 1D as:
         # a a a b b c c c
         #   a a a b b c c c
@@ -163,7 +165,7 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 
 
 # %% [markdown] tags=["task"]
-# 1. _Why do we need to loop over dimensions? Couldn't we do all at once?_
+# 1. _Why do we need to loop over dimensions? Couldn't we compute all at once?_
 #
 # 2. _What is the purpose of the pad?_
 #
@@ -171,11 +173,11 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 #
 # 4. _Why do we use `map_coordinates`?_
 #
-# 5. _ bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
+# 5. _bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
 
 # %% [markdown] tags=["solution"]
-# 1. _Why do we need to loop over dimensions? Couldn't we do all at once?_
-# To get the distance to boundaries in each axis. Regardless of the shift we choose, we will always miss boundaries that line up perfectly with the offset. (shifting by (1, 1) will miss diagonal boundaries).
+# 1. _Why do we need to loop over dimensions? Couldn't we compute all at once?_
+# To get the distance to boundaries in each axis. Regardless of the shift we choose, we will always miss boundaries that line up perfectly with the offset. (shifting only by (1, 1) will miss diagonal boundaries).
 #
 # 2. _What is the purpose of the pad?_
 # We lose a pixel when we compute the boundaries so we need to pad to cover the whole input image.
@@ -184,9 +186,9 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 # It computes the index coordinate of every voxel. Offset by half on the dimension along which we computed boundaries because the boundaries sit half way between the voxels on either side of the boundary
 #
 # 4. _Why do we use `map_coordinates`?_
-# Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation<
+# Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation
 #
-# 5. _ bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
+# 5. _bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
 # Kind of. If you assume this is the full image and no data exists outside the provided region, then yes. But if you have a larger image, then you cannot know the distance to the nearest out of view object. It might be visible given one more pixel, or there could never be another object.
 # Depending on how you train, you may need to take this into account.
 
@@ -806,6 +808,9 @@ print(f"Mean Precision is {np.mean(precision_list):.3f}")
 print(f"Mean Recall is {np.mean(recall_list):.3f}")
 print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 
+# %% [markdown]
+# <div class="alert alert-block alert-success">
+# <h2> Checkpoint 3 </h2>
 
 # %% [markdown]
 # <hr style="height:2px;">
@@ -985,7 +990,7 @@ class AffinityDataset(Dataset):
 
     def create_aff_target(self, mask):
         aff_target_array = compute_affinities(
-            np.asarray(mask), [[0, 1], [1, 0], [0, 5], [5, 0]]
+            np.asarray(mask), self.neighborhood
         )
         aff_target = torch.from_numpy(aff_target_array)
         return aff_target.float()
@@ -1200,7 +1205,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 
 # %% [markdown]
 # <div class="alert alert-block alert-success">
-# <h2> Checkpoint 3 </h2>
+# <h2> Checkpoint 4 </h2>
 
 # %% [markdown]
 # <hr style="height:2px;">
