@@ -162,27 +162,32 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 
 
 # %% [markdown] tags=["task"]
-# 1. _Why do we need to loop over dimensions?_
+# 1. _Why do we need to loop over dimensions? Couldn't we do all at once?_
 #
 # 2. _What is the purpose of the pad?_
 #
 # 3. _What does meshgrid do?_
 #
 # 4. _Why do we use `map_coordinates`?_
+#
+# 5. _ bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
 
 # %% [markdown] tags=["solution"]
-# 1. _Why do we need to loop over dimensions?_
-# To get the distance to boundaries in each axis
+# 1. _Why do we need to loop over dimensions? Couldn't we do all at once?_
+# To get the distance to boundaries in each axis. Regardless of the shift we choose, we will always miss boundaries that line up perfectly with the offset. (shifting by (1, 1) will miss diagonal boundaries).
 #
 # 2. _What is the purpose of the pad?_
-# We lose a pixel when we compute the boundaries so we need to pad to cover the whole input image.</li>
+# We lose a pixel when we compute the boundaries so we need to pad to cover the whole input image.
 #
 # 3. _What does meshgrid do?_
-# It computes the index coordinate of every voxel. Offset by half on the dimension along which we computed boundaries because the boundaries sit half way between the voxels on either side of the boundary</li>
+# It computes the index coordinate of every voxel. Offset by half on the dimension along which we computed boundaries because the boundaries sit half way between the voxels on either side of the boundary
 #
 # 4. _Why do we use `map_coordinates`?_
-# Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation</li>
-
+# Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation<
+#
+# 5. _ bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
+# Kind of. If you assume this is the full image and no data exists outside the provided region, then yes. But if you have a larger image, then you cannot know the distance to the nearest out of view object. It might be visible given one more pixel, or there could never be another object.
+# Depending on how you train, you may need to take this into account.
 
 # %% [markdown]
 # Below is a small function to visualize the signed distance transform (SDT). <br> Use it to validate your function.
