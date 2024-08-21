@@ -458,7 +458,11 @@ def plot_two(img: np.ndarray, intermediate: np.ndarray, label: str):
 
 
 def plot_three(
-    img: np.ndarray, intermediate: np.ndarray, pred: np.ndarray, label: str = "Target"
+    img: np.ndarray,
+    intermediate: np.ndarray,
+    pred: np.ndarray,
+    label: str = "Target",
+    label_cmap=None,
 ):
     """
     Helper function to plot an image, the auxiliary (intermediate)
@@ -484,13 +488,24 @@ def plot_three(
     ax1.set_xlabel("Image", fontsize=20)
     plt.imshow(img)
     ax2 = fig.add_subplot(spec[0, 1])
-    ax2.set_xlabel(label, fontsize=20)
+    if label_cmap is not None:
+        ax2.set_xlabel("Labels", fontsize=20)
+    else:
+        ax2.set_xlabel(label, fontsize=20)
+
     if len(intermediate.shape) == 2:
-        plt.imshow(intermediate, cmap="coolwarm")
+        if label_cmap is None:
+            plt.imshow(intermediate, cmap="coolwarm")
+        else:
+            plt.imshow(intermediate, cmap=label_cmap, interpolation="none")
     else:
         plt.imshow(intermediate)
     ax3 = fig.add_subplot(spec[0, 2])
-    ax3.set_xlabel("Prediction", fontsize=20)
+    if label_cmap is not None:
+        ax3.set_xlabel(label, fontsize=20)
+    else:
+        ax3.set_xlabel("Prediction", fontsize=20)
+
     if len(pred.shape) == 2:
         t = plt.imshow(pred, cmap="coolwarm")
         cbar = fig.colorbar(t, fraction=0.046, pad=0.04)

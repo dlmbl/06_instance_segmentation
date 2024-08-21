@@ -190,7 +190,7 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 # Depending on how you train, you may need to take this into account.
 
 # %% [markdown]
-# Below is a small function to visualize the signed distance transform (SDT). <br> Use it to validate your function.
+# Below is a quick visualization of the signed distance transform (SDT).
 # <br> Note that the output of the signed distance transform is not binary, a significant difference from semantic segmentation
 # %%
 # Visualize the signed distance transform using the function you wrote above.
@@ -203,7 +203,7 @@ label = tifffile.imread(
     os.path.join(root_dir, f"img_{idx}_cyto_masks.tif")
 )  # get the image
 sdt = compute_sdt(label)
-plot_two(img, sdt, label="SDT")
+plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
@@ -220,9 +220,10 @@ plot_two(img, sdt, label="SDT")
 # %% [markdown] tags=["solution"]
 # <b>Questions</b>:
 # 1. _Why do we need to normalize the distances between -1 and 1?_
-#   If the closest object to a pixel is outside the receptive field, the model cannot know whether the distance is 100 or 100_000. Squeezing large distances down to 1 or -1 makes the answer less ambiguous.<br>
+#   If the closest object to a pixel is outside the receptive field, the model cannot know whether the distance is 100 or 100_000. Squeezing large distances down to 1 or -1 makes the answer less ambiguous.
+
 # 2. _What is the effect of changing the scale value? What do you think is a good default value?_
-#   Increasing the scale is equivalent to having a wider boundary region.
+#   Increasing the scale is equivalent to having a wider boundary region. 5 seems reasonable.
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
