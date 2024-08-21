@@ -229,9 +229,9 @@ plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 # <div class="alert alert-block alert-info">
 # <b>Task 1.3</b>: <br>
 #     Modify the `SDTDataset` class below to produce the paired raw and SDT images.<br>
-#   1. Modify the `__getitem__` method to return an SDT output rather than a label mask.<br>
-#       - Ensure that all final outputs are of torch tensor type.<br>
-#       - Think about the order in which transformations are applied to the mask/SDT.<br>
+#   1. Fill in the `create_sdt_target` method to return an SDT output rather than a label mask.<br>
+#       - Ensure that all final outputs are of torch tensor type, and are converted to float.
+#   2. Instantiate the dataset with a RandomCrop of size 256 and visualize the output to confirm that the SDT is correct.
 # </div>
 
 
@@ -254,16 +254,16 @@ class SDTDataset(Dataset):
                 v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
-        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
+        self.from_np = v2.Lambda(lambda x: torch.from_numpy(x))
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = self.to_img(tifffile.imread(img_path))
+            image = self.from_np(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = self.to_img(tifffile.imread(mask_path))
+            mask = self.from_np(tifffile.imread(mask_path))
             self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
@@ -286,7 +286,9 @@ class SDTDataset(Dataset):
             mask = self.transform(mask)
 
         # use the compute_sdt function to get the sdt
-        sdt = ...
+        sdt = self.create_sdt_target(mask)
+        assert isinstance(sdt, torch.Tensor)
+        assert sdt.dtype == torch.float32
         assert sdt.shape == mask.shape
         if self.img_transform is not None:
             image = self.img_transform(image)
@@ -295,6 +297,9 @@ class SDTDataset(Dataset):
         else:
             return image, sdt.unsqueeze(0)
 
+    def create_sdt_target(self, mask):
+        ...
+        return ...
 
 # %% tags=["solution"]
 class SDTDataset(Dataset):
@@ -315,16 +320,16 @@ class SDTDataset(Dataset):
                 v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
-        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
+        self.from_np = v2.Lambda(lambda x: torch.from_numpy(x))
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
-        for sample_ind in tqdm(range(self.num_samples)):
+        for sample_ind in tqdm(range(self.num_samples), desc="Reaqding Images"):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = self.to_img(tifffile.imread(img_path))
+            image = self.from_np(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = self.to_img(tifffile.imread(mask_path))
+            mask = self.from_np(tifffile.imread(mask_path))
             self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
@@ -347,6 +352,8 @@ class SDTDataset(Dataset):
             mask = self.transform(mask)
         sdt = self.create_sdt_target(mask)
         assert sdt.shape == mask.shape
+        assert isinstance(sdt, torch.Tensor)
+        assert sdt.dtype == torch.float32
         if self.img_transform is not None:
             image = self.img_transform(image)
         if self.return_mask is True:
@@ -356,29 +363,74 @@ class SDTDataset(Dataset):
 
     def create_sdt_target(self, mask):
         sdt_target_array = compute_sdt(mask.numpy())
-        sdt_target = self.to_img(sdt_target_array)
+        sdt_target = self.from_np(sdt_target_array)
         return sdt_target.float()
+
+#%% tags=["task"]
+# Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
+# documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
+# Visualize the output to confirm your dataset is working.
+
+train_data = SDTDataset("tissuenet_data/train", ...)
+img, sdt = train_data[10]  # get the image and the distance transform
+# We use the `plot_two` function (imported in the first cell) to verify that our
+# dataset solution is correct. The output should show 2 images: the raw image and
+# the corresponding SDT.
+plot_two(img, sdt[0], label="SDT")
+
+#%% tags=["solution"]
+# Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
+# documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
+# Visualize the output to confirm your dataset is working.
+
+train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(256))
+img, sdt = train_data[10]  # get the image and the distance transform
+# We use the `plot_two` function (imported in the first cell) to verify that our
+# dataset solution is correct. The output should show 2 images: the raw image and
+# the corresponding SDT.
+plot_two(img, sdt[0], label="SDT")
+
+# %% [markdown] tags=["task"]
+# <div class="alert alert-block alert-info">
+# <b>Task 1.4</b>: Understanding the dataloader.
+# Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
+# to discuss them.
+# 
+# 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
+# 
+# 2. _What is the purpose of the `loaded_imgs` and `loaded_masks` lists?_
+# </div>
+
+# %% [markdown] tags=["solution"]
+# <div class="alert alert-block alert-info">
+# <b>Task 1.4</b>: Understanding the dataloader.
+# Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
+# to discuss them.
+# 
+# 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
+# The seed variable is used to ensure that the same random transform is applied to the image and mask. If we don't use the seed, the image and mask will be transformed differently, leading to misaligned data.
+#
+# 2. _What is the purpose of the `loaded_imgs` and `loaded_masks` lists?_
+# We load the images and masks into memory to avoid reading them from disk every time we access the dataset. This speeds up the training process. GPUs are very fast so
+# we often need to put a lot of thought into how to provide data to them fast enough.
+#
+# </div>
 
 
 # %% [markdown]
-# ### Test your function
-#
 # Next, we will create a training dataset and data loader.
-# We will use `plot_two` (imported in the first cell) to verify that our dataset solution is correct. The output should show 2 images: the raw image and the corresponding SDT.
+# 
 # %%
+# TODO: You don't have to add extra augmentations, training will work without.
+# But feel free to experiment here if you want to come back and try to get better results if you have time.
 train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(256))
 train_loader = DataLoader(
     train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
 )
 
-idx = np.random.randint(len(train_data))  # take a random sample
-img, sdt = train_data[idx]  # get the image and the nuclei masks
-print(img.shape, sdt.shape)
-plot_two(img, sdt[0], label="SDT")
-
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 1.4</b>: Train the U-Net.
+# <b>Task 1.5</b>: Train the U-Net.
 # </div>
 # %% [markdown]
 # In this task, initialize the UNet, specify a loss function, learning rate, and optimizer, and train the model.<br>
