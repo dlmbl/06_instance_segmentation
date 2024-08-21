@@ -94,6 +94,7 @@ label_cmap = ListedColormap(colors)
 
 # %%
 
+
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
     dims = len(labels.shape)
@@ -301,6 +302,7 @@ class SDTDataset(Dataset):
         ...
         return ...
 
+
 # %% tags=["solution"]
 class SDTDataset(Dataset):
     """A PyTorch dataset to load cell images and nuclei masks."""
@@ -366,7 +368,8 @@ class SDTDataset(Dataset):
         sdt_target = self.from_np(sdt_target_array)
         return sdt_target.float()
 
-#%% tags=["task"]
+
+# %% tags=["task"]
 # Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
 # documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
 # Visualize the output to confirm your dataset is working.
@@ -378,7 +381,7 @@ img, sdt = train_data[10]  # get the image and the distance transform
 # the corresponding SDT.
 plot_two(img, sdt[0], label="SDT")
 
-#%% tags=["solution"]
+# %% tags=["solution"]
 # Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
 # documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
 # Visualize the output to confirm your dataset is working.
@@ -395,9 +398,9 @@ plot_two(img, sdt[0], label="SDT")
 # <b>Task 1.4</b>: Understanding the dataloader.
 # Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
 # to discuss them.
-# 
+#
 # 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
-# 
+#
 # 2. _What is the purpose of the `loaded_imgs` and `loaded_masks` lists?_
 # </div>
 
@@ -406,7 +409,7 @@ plot_two(img, sdt[0], label="SDT")
 # <b>Task 1.4</b>: Understanding the dataloader.
 # Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
 # to discuss them.
-# 
+#
 # 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
 # The seed variable is used to ensure that the same random transform is applied to the image and mask. If we don't use the seed, the image and mask will be transformed differently, leading to misaligned data.
 #
@@ -419,7 +422,7 @@ plot_two(img, sdt[0], label="SDT")
 
 # %% [markdown]
 # Next, we will create a training dataset and data loader.
-# 
+#
 # %%
 # TODO: You don't have to add extra augmentations, training will work without.
 # But feel free to experiment here if you want to come back and try to get better results if you have time.
@@ -677,6 +680,7 @@ plot_four(image[1], mask, pred, seg, label="Target", cmap=label_cmap)
 #       - Experiment with different values.
 #
 # The `min_seed_distance` parameter is used to filter out local maxima that are too close to each other. This can be useful to prevent oversegmentation. If the value is too high, you may miss some local maxima, leading to undersegmentation. If the value is too low, you may get too many local maxima, leading to oversegmentation.
+# Note that this is one limitation of the signed distance trasform formulation of this task. It is not easy to segment long spaghetti-like objects with this approach.
 
 # %% [markdown]
 # <div class="alert alert-block alert-success">
@@ -808,14 +812,78 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # ## Section 4: Affinities
 # %% [markdown]
 # <i>What are affinities? </i><br>
-# Here we consider not just the pixel but also its direct neighbors.
-# <br> Imagine there is an edge between two pixels if they are in the same class and no edge if not.
-# <br> If we then take all pixels that are directly and indirectly connected by edges, we get an instance.
-# <br> Essentially, we label edges between neighboring pixels as “connected” or “cut”, rather than labeling the pixels themselves. <br>
-# Here,  we show the (affinity in x + affinity in y) in the bottom right image.
+# Affinities are a generalization of the a topic that we briefly touched on while computing the signed distance transform.
+# Remember how we created a binary mask defining the boundaries between objects?
+
+# ### 1D
+# ```
+# a a a b b c c c
+#   a a a b b c c c
+#   1 1 0 1 0 1 1
+# ```
+# and for visualization we can center the affinities:
+# ```
+# a a a b b c c c
+#  1 1 0 1 0 1 1
+# ```
+#
+
+# In this example we are shifting the labels by 1 pixel and comparing them to the original labels.
+# We call this an affinity with neighborhood 1. We can also compute affinities with different neighborhoods.
+# For example: a neighborhood of 2 might look like this:
+# ```
+# a a a b b c c c
+#     a a a b b c c c
+#     1 0 0 0 0 1
+# ```
+# And centering for visualization:
+# ```
+# a a a b b c c c
+#   1 0 0 0 0 1
+# ```
+# Notice that we are just lengthening the boundary between the objects.
+
+# ### 2D
+# In 2D, we can compute affinities in the same way. We can compute affinities in the x and y directions, as well as diagonally.
+# Consider the neighborhood (1,1). I'll use "-" to represent some padding for easier visualization.
+# ```
+# a a a b b -
+# a a a b b -
+# c c c b b -
+# c c c b b -
+# - - - - - -
+# ```
+# ```
+# - - - - - -
+# - a a a b b
+# - a a a b b
+# - c c c b b
+# - c c c b b
+# ```
+# ```
+# - - - - - -
+# - 1 1 0 1 -
+# - 0 0 0 1 -
+# - 1 1 0 1 -
+# - - - - - -
+# ```
+# Now lets look at some real affinities. In the next image we have computed 2 different sets of affinities. The first set with neighborhood (0,1) and (1,0), and the second set with neighborhood (0,5) and (5,0).
 
 # %% [markdown]
 # ![image](static/figure3/instance_affinity.png)
+
+# %% [markdown]
+# Note that the boundaries only show up the side of each object. This is because we usually don't bother centering the affinities. Half voxel shifts would add a lot of unnecessary complexity with unclear benefits to training.
+
+# %% [markdown]
+# The pros and cons of Affinities:
+# - Pros:
+#     - No limitations on shape or size. Blobby objects like nuclei, tiny objects only a pixel wide, and massive objects that could never fit in a field of view, all can be turned into affinities and back perfectly.
+#     - Easy post-processing. We can do a simple watershed to get an initial segmentation. And then we can compute the average affinity between each pair of labels. This is very powerful for processing huge objects in small pieces.
+# - Cons:
+#     - Extreme class imbalance. The affinities are only 0 between objects and in background. This means networks can often learn to predict 1s everywhere and be mostly correct. Thus we always use some form of weighted loss when training affinities.
+#     - Post processing can be sensitive to small errors. A naive agglomeration may merge fragments if a single high affinity edge is predicted between two separate objects, despite potentially thousands of low affinity edges contradicting this signal.
+
 
 # %% [markdown]
 # Similar to the pipeline used for SDTs, we first need to modify the dataset to produce affinities.
@@ -835,7 +903,13 @@ class AffinityDataset(Dataset):
         img_transform=None,
         return_mask=False,
         weights: bool = False,
+        neighborhood=None,
     ):
+        self.neighborhood = (
+            neighborhood
+            if neighborhood is not None
+            else [[0, 1], [1, 0], [0, 5], [5, 0]]
+        )
         self.weights = weights
         self.root_dir = root_dir  # the directory with all the training samples
         self.num_samples = len(os.listdir(self.root_dir)) // 3  # list the samples
@@ -850,16 +924,16 @@ class AffinityDataset(Dataset):
                 v2.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
             ]
         )
-        self.to_img = v2.Lambda(lambda x: torch.from_numpy(x))
+        self.from_np = v2.Lambda(lambda x: torch.from_numpy(x))
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
         for sample_ind in tqdm(range(self.num_samples)):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
-            image = self.to_img(tifffile.imread(img_path))
+            image = self.from_np(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
             mask_path = os.path.join(self.root_dir, f"img_{sample_ind}_cyto_masks.tif")
-            mask = self.to_img(tifffile.imread(mask_path))
+            mask = self.from_np(tifffile.imread(mask_path))
             self.loaded_masks[sample_ind] = mask
 
     # get the total number of samples
@@ -921,13 +995,23 @@ class AffinityDataset(Dataset):
 # %%
 # Initialize the datasets
 
-train_data = AffinityDataset("tissuenet_data/train", v2.RandomCrop(256), weights=True)
+# TODO: feel free to play around with the neighborhood parameter
+# The visualization code will break if you change the number of affinities, but feel free to change the magnitudes.
+# Training will break if you change the number of affinities. It is a simple fix, you will just need to change the number
+# of output channels the unet produces.
+
+train_data = AffinityDataset(
+    "tissuenet_data/train",
+    v2.RandomCrop(256),
+    weights=True,
+    neighborhood=[[0, 1], [1, 0], [0, 5], [5, 0]],
+)
 train_loader = DataLoader(
     train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
 )
 idx = np.random.randint(len(train_data))  # take a random sample
 img, affinity, weight = train_data[idx]  # get the image and the nuclei masks
-plot_two(img, affinity, label="AFFINITY")
+plot_two(img, affinity, label="Affinities")
 
 
 # %% [markdown]
@@ -943,10 +1027,12 @@ plot_two(img, affinity, label="AFFINITY")
 
 unet = ...
 learning_rate = ...
+# Note you will need to use `reduce=False` for whatever loss function you choose. The easiest choices will be `BCELoss` or `MSELoss`.
+# Normally for e.g. MSE loss you compute the squared error of each pixel, then reduce with the mean, and backpropogate.
+# However we want to weight each pixel separately, so we compute the loss per pixel, then multiply by that pixels weight, then reduce with the mean.
+# This provides a larger gradient for pixels that have a larger weight since they will contribute more the the final loss.
 loss = ...
 optimizer = ...
-
-# train
 
 # %% tags=["solution"]
 
@@ -967,11 +1053,18 @@ learning_rate = 1e-4
 loss = torch.nn.BCELoss(reduce=False)
 
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
-
-val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(256))
-val_loader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=8)
-
-# %%
+# %% tags=["task"]
+for epoch in range(NUM_EPOCHS):
+    train(
+        ...,
+        ...,
+        ...,
+        ...,
+        ...,
+        log_interval=2,
+        device=device,
+    )
+# %% tags=["solution"]
 for epoch in range(NUM_EPOCHS):
     train(
         unet,
@@ -1017,7 +1110,9 @@ pred_labels = mws.agglom(
 
 plot_four(image, affs, pred, pred_labels, label="Affinity", cmap=label_cmap)
 print(evaluate(gt_labels, pred_labels))
-pred_labels = remove_small_objects(pred_labels.astype(np.int64), min_size=64, connectivity=1)
+pred_labels = remove_small_objects(
+    pred_labels.astype(np.int64), min_size=64, connectivity=1
+)
 print(evaluate(gt_labels, pred_labels))
 plot_four(image, affs, pred, pred_labels, label="Affinity", cmap=label_cmap)
 # %% [markdown]
