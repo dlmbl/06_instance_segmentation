@@ -6,7 +6,7 @@
 #
 # For isolated objects, this is trivial, all connected foreground pixels form one instance, yet often instances are very close together or even overlapping. Thus we need to think a bit more how to formulate the targets / loss of our network.
 #
-# Furthermore, in instance segmentation the specific value of each label is arbitrary. Here, `Mask 1` and `Mask 2` are equivalently good segmentations even though the values of pixels on individual cells are different.
+# Furthermore, in instance segmentation the specific value of each label is arbitrary. Here we label each cell with a number and assign a color to each number giving us a segmentation mask. `Mask 1` and `Mask 2` are equivalently good segmentations even though the specific label of each cell is arbitrary.
 #
 # | Image | Mask 1| Mask 2|
 # | :-: | :-: | :-: |
