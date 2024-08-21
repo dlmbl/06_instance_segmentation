@@ -94,26 +94,38 @@ label_cmap = ListedColormap(colors)
 
 # %%
 
-
 def compute_sdt(labels: np.ndarray, scale: int = 5):
     """Function to compute a signed distance transform."""
     dims = len(labels.shape)
+    # Create a placeholder array of infinite distances
     distances = np.ones(labels.shape, dtype=np.float32) * np.inf
     for axis in range(dims):
+        # Here we compute the boundaries by shifting the labels and comparing to the original
+        # This can be visualized in 1D as:
+        # a a a b b c c c
+        #   a a a b b c c c
+        #   1 1 0 1 0 1 1
+        # Applying a half pixel shift makes the result more obvious:
+        # a a a b b c c c
+        #  1 1 0 1 0 1 1
         bounds = (
             labels[*[slice(None) if a != axis else slice(1, None) for a in range(dims)]]
             == labels[
                 *[slice(None) if a != axis else slice(None, -1) for a in range(dims)]
             ]
         )
+        # pad to account for the lost pixel
         bounds = np.pad(
             bounds,
             [(1, 1) if a == axis else (0, 0) for a in range(dims)],
             mode="constant",
             constant_values=1,
         )
+        # compute distances on the boundary mask
         axis_distances = distance_transform_edt(bounds)
 
+        # compute the coordinates of each original pixel relative to the boundary mask and distance transform.
+        # Its just a half pixel shift in the axis we computed boundaries for.
         coordinates = np.meshgrid(
             *[
                 range(axis_distances.shape[a])
@@ -125,13 +137,20 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
         )
         coordinates = np.stack(coordinates)
 
+        # Interpolate the distances to the original pixel coordinates
         sampled = map_coordinates(
             axis_distances,
             coordinates=coordinates,
             order=3,
         )
+
+        # Update the distances with the minimum distance to a boundary in this axis
         distances = np.minimum(distances, sampled)
+
+    # Normalize the distances to be between -1 and 1
     distances = np.tanh(distances / scale)
+
+    # Invert the distances for pixels in the background
     distances[labels == 0] *= -1
     return distances
 
