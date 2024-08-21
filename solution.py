@@ -515,6 +515,7 @@ plot_three(image, sdt, pred)
 #
 # At this point we have a model that does what we told it too, but do not yet have a segmentation. <br>
 # In the next section, we will perform some post-processing and obtain segmentations from our predictions.
+
 # %% [markdown]
 # <hr style="height:2px;">
 #
@@ -626,10 +627,10 @@ pred = ...
 threshold = ...
 
 # Get inner mask
-inner_mask = get_inner_mask(pred, threshold=threshold)
+inner_mask = get_inner_mask(...)
 
 # Get the segmentation
-seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
+seg = watershed_from_boundary_distance(...)
 
 # %% tags=["solution"]
 idx = np.random.randint(len(val_data))  # take a random sample
@@ -1196,6 +1197,11 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # ## Bonus: Further reading on Affinities
 # [Here](https://localshapedescriptors.github.io/) is a blog post describing the Local Shape Descriptor method of instance segmentation.
 #
+
+# %% [markdown]
+# <div class="alert alert-block alert-success">
+# <h2> Checkpoint 3 </h2>
+
 # %% [markdown]
 # <hr style="height:2px;">
 #
