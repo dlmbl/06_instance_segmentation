@@ -536,6 +536,7 @@ from scipy.ndimage import label, maximum_filter
 def find_local_maxima(distance_transform, min_dist_between_points):
     # Hint: Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
 
+    ...
     seeds, number_of_seeds = ...
 
     return seeds, number_of_seeds
@@ -550,9 +551,9 @@ def find_local_maxima(distance_transform, min_dist_between_points):
     max_filtered = maximum_filter(distance_transform, min_dist_between_points)
     maxima = max_filtered == distance_transform
     # Uniquely label the local maxima
-    seeds, n = label(maxima)
+    seeds, number_of_seeds = label(maxima)
 
-    return seeds, n
+    return seeds, number_of_seeds
 
 
 # %%
