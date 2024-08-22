@@ -5,7 +5,7 @@ conda activate 04-instance-segmentation
 # Install additional requirements
 pip install uv
 uv pip install -r requirements.txt
-
+python -m ipykernel install --user --name "04-instance-segmentation"
 # Return to base environment
 conda deactivate
 
