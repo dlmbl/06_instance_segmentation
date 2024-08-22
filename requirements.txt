@@ -7,6 +7,7 @@ imageio
 scipy
 scikit-image
 tensorboard
+mwatershed
 matplotlib
 ipykernel
 jupytext
