@@ -8,4 +8,4 @@ Run the shell script:
 source setup.sh
 ```
 
-Start jupyter-lab, select the `04-instance-segmentation` kernel and follow the instructions in the notebook `exercise.ipynb`. 
+Open  the notebook `exercise.ipynb` in your preferred tool and make sure to select the `04-instance-segmentation` kernel 
