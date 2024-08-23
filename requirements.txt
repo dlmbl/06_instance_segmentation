@@ -12,3 +12,4 @@ ipykernel
 jupytext
 cellpose
 dlmbl_unet @ git+https://github.com/dlmbl/dlmbl-unet
+mwatershed
