@@ -835,8 +835,8 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 #
 
 # In this example we are shifting the labels by 1 pixel and comparing them to the original labels.
-# We call this an affinity with neighborhood 1. We can also compute affinities with different neighborhoods.
-# For example: a neighborhood of 2 might look like this:
+# We call this an affinity with offset 1. We can also compute affinities with different neighborhoods.
+# For example: an offset of 2 might look like this:
 # ```
 # a a a b b c c c
 #     a a a b b c c c
@@ -847,11 +847,11 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # a a a b b c c c
 #   1 0 0 0 0 1
 # ```
-# Notice that we are just lengthening the boundary between the objects.
+# Notice that we are just lengthening the boundary between the objects. Object b that is only 2 pixels wide no longer has any positive affinities :'(
 
 # ### 2D
 # In 2D, we can compute affinities in the same way. We can compute affinities in the x and y directions, as well as diagonally.
-# Consider the neighborhood (1,1). I'll use "-" to represent some padding for easier visualization.
+# Consider the offset (1,1). I'll use "-" to represent some padding for easier visualization.
 # ```
 # a a a b b -
 # a a a b b -
@@ -873,10 +873,14 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # - 1 1 0 1 -
 # - - - - - -
 # ```
-# Now lets look at some real affinities. In the next image we have computed 2 different sets of affinities. The first set with neighborhood (0,1) and (1,0), and the second set with neighborhood (0,5) and (5,0).
+# Now lets look at some real affinities. In the next image we have computed 2 different offsets for our affinities. The first set with offsets (0,1) and (1,0), and the second set with offsets (0,5) and (5,0).
+# Note we call a collection of offsets our affinity "neighborhood".
 
 # %% [markdown]
 # ![image](static/figure3/instance_affinity.png)
+
+# %% [markdown]
+# What do the colors mean in the affinities plots? We are displaying the affinities as RGB values. But we only have 2 offsets in our neighborhood, so those get assigned R and B. The G channel is faked by setting it to 0 only if both R and B are 0. This makes the background black, and pixels with both x and y affinity (inside our objects) show up white. The exceptions are at the boundaries where we now have either RG or BG (magenta and cyan) representing pixels that are on either the right or bottom boundaries of an object.
 
 # %% [markdown]
 # Note that the boundaries only show up the side of each object. This is because we usually don't bother centering the affinities. Half voxel shifts would add a lot of unnecessary complexity with unclear benefits to training.
