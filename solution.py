@@ -1,3 +1,15 @@
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: tags,tas,-all
+#     custom_cell_magics: kql
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.11.2
+# ---
+
 # %% [markdown]
 # # Exercise 05: Instance Segmentation :)
 #
@@ -166,7 +178,7 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 #
 # 4. _Why do we use `map_coordinates`?_
 #
-# 5. _bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
+# 5. _bonus question: Is the pad sufficient to give us accurate distances at the edge of our image?_
 
 # %% [markdown] tags=["solution"]
 # 1. _Why do we need to loop over dimensions? Couldn't we compute all at once?_
@@ -181,7 +193,7 @@ def compute_sdt(labels: np.ndarray, scale: int = 5):
 # 4. _Why do we use `map_coordinates`?_
 # Boundaries are defined between pixels, not on individual pixels. So the distance from a pixel on a boundary to the boundary should be half of a pixel. Map Coordinates lets us get this interpolation
 #
-# 5. _bonux question: Is the pad sufficient to give us accurate distances at the edge of our image?_
+# 5. _bonus question: Is the pad sufficient to give us accurate distances at the edge of our image?_
 # Kind of. If you assume this is the full image and no data exists outside the provided region, then yes. But if you have a larger image, then you cannot know the distance to the nearest out of view object. It might be visible given one more pixel, or there could never be another object.
 # Depending on how you train, you may need to take this into account.
 
@@ -203,7 +215,7 @@ plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 1.2</b>: Explain the scale parameter.
+# <b>Task 1.2</b>: Explain the scale parameter in <code>compute_std</code>.
 # </div>
 
 # %% [markdown] tas=["task"]
@@ -217,16 +229,16 @@ plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 # <b>Questions</b>:
 # 1. _Why do we need to normalize the distances between -1 and 1?_
 #   If the closest object to a pixel is outside the receptive field, the model cannot know whether the distance is 100 or 100_000. Squeezing large distances down to 1 or -1 makes the answer less ambiguous.
-
+#
 # 2. _What is the effect of changing the scale value? What do you think is a good default value?_
 #   Increasing the scale is equivalent to having a wider boundary region. 5 seems reasonable.
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 1.3</b>: <br>
-#     Modify the `SDTDataset` class below to produce the paired raw and SDT images.<br>
-#   1. Fill in the `create_sdt_target` method to return an SDT output rather than a label mask.<br>
-#       - Ensure that all final outputs are of torch tensor type, and are converted to float.
+#     Modify the <code>SDTDataset</code> class below to produce the paired raw and SDT images.<br>
+#   1. Fill in the <code>create_sdt_target</code> method to return an SDT output rather than a label mask.<br>
+#       - Ensure that all final outputs are of torch tensor type, and are converted to float.<br>
 #   2. Instantiate the dataset with a RandomCrop of size 128 and visualize the output to confirm that the SDT is correct.
 # </div>
 
@@ -294,6 +306,9 @@ class SDTDataset(Dataset):
             return image, sdt.unsqueeze(0)
 
     def create_sdt_target(self, mask):
+
+        ########## YOUR CODE HERE ##########
+
         ...
         return ...
 
@@ -394,7 +409,7 @@ plot_two(img, sdt[0], label="SDT")
 # Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
 # to discuss them.
 #
-# 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
+# 1. _What are we doing with the `seed` variable and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
 #
 # 2. _What is the purpose of the `loaded_imgs` and `loaded_masks` lists?_
 # </div>
@@ -429,8 +444,9 @@ train_loader = DataLoader(
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 1.5</b>: Train the U-Net.
-# </div>
-# %% [markdown]
+#
+# In the cell below, fill in your code anywhere you see ...
+#
 # In this task, initialize the UNet, specify a loss function, learning rate, and optimizer, and train the model.<br>
 # <br> For simplicity we will use a pre-made training function imported from `local.py`. <br>
 # <u>Hints</u>:<br>
@@ -440,7 +456,7 @@ train_loader = DataLoader(
 #       - [sigmoid](https://pytorch.org/docs/stable/generated/torch.nn.Sigmoid.html)
 #       - [tanh](https://pytorch.org/docs/stable/generated/torch.nn.Tanh.html#torch.nn.Tanh)
 #       - [relu](https://pytorch.org/docs/stable/generated/torch.nn.ReLU.html#torch.nn.ReLU)
-
+# </div>
 # %% tags=["task"]
 # If you manage to get a loss close to 0.1, you are doing pretty well and can probably move on
 unet = ...
@@ -522,11 +538,10 @@ plot_three(image, sdt, pred)
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 2.1</b>: write a function to find the local maxima of the distance transform
-# </div>
-
-# %% [markdown]
+#
 # <u>Hint</u>: Look at the imports. <br>
 # <u>Hint</u>: It is possible to write this function by only adding 2 lines.
+# </div>
 
 # %% tags=["task"]
 from scipy.ndimage import label, maximum_filter
@@ -597,7 +612,7 @@ def get_inner_mask(pred, threshold):
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 2.2</b>: <br> Use the model to generate a predicted SDT and then use the watershed function we defined above to get post-process into a segmentation
+# <b>Task 2.2</b>: <br> Use the model to generate a predicted SDT and then use the watershed function we defined above to post-process the model output into a segmentation
 # </div>
 
 # %% tags=["task"]
@@ -663,18 +678,13 @@ plot_four(image[1], mask, pred, seg, label="Target", cmap=label_cmap)
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 2.3</b>: <br> Min Seed Distance
+#
+# Questions:
+# 1. What is the effect of the `min_seed_distance` parameter in watershed?
+#       - Experiment with different values.
 # </div>
 
-# %% [markdown] tags=["task"]
-# Questions:
-# 1. What is the effect of the `min_seed_distance` parameter in watershed?
-#       - Experiment with different values.
-
 # %% [markdown] tags=["solution"]
-# Questions:
-# 1. What is the effect of the `min_seed_distance` parameter in watershed?
-#       - Experiment with different values.
-#
 # The `min_seed_distance` parameter is used to filter out local maxima that are too close to each other. This can be useful to prevent oversegmentation. If the value is too high, you may miss some local maxima, leading to undersegmentation. If the value is too low, you may get too many local maxima, leading to oversegmentation.
 # Note that this is one limitation of the signed distance trasform formulation of this task. It is not easy to segment long spaghetti-like objects with this approach.
 
@@ -693,20 +703,13 @@ plot_four(image[1], mask, pred, seg, label="Target", cmap=label_cmap)
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 3.1</b>: Pick the best metric to use
+#
+# Which of the following should we use for our dataset?:
+#   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
+#   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
+#   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
 # </div>
-# %% [markdown] tags=["task"]
-# Which of the following should we use for our dataset?:
-#   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
-#   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
-#   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
-#
-
 # %% [markdown] tags=["solution"]
-# Which of the following should we use for our dataset?:
-#   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
-#   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
-#   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
-#
 # We will use Accuracy, Precision, and Recall as our evaluation metrics. IoU is also a good metric to use, but it is more commonly used for semantic segmentation tasks.
 
 # %% [markdown]
@@ -813,7 +816,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # <i>What are affinities? </i><br>
 # Affinities are a generalization of the a topic that we briefly touched on while computing the signed distance transform.
 # Remember how we created a binary mask defining the boundaries between objects?
-
+#
 # ### 1D
 # ```
 # a a a b b c c c
@@ -826,7 +829,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 #  1 1 0 1 0 1 1
 # ```
 #
-
+#
 # In this example we are shifting the labels by 1 pixel and comparing them to the original labels.
 # We call this an affinity with offset 1. We can also compute affinities with different neighborhoods.
 # For example: an offset of 2 might look like this:
@@ -841,7 +844,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 #   1 0 0 0 0 1
 # ```
 # Notice that we are just lengthening the boundary between the objects. Object b that is only 2 pixels wide no longer has any positive affinities :'(
-
+#
 # ### 2D
 # In 2D, we can compute affinities in the same way. We can compute affinities in the x and y directions, as well as diagonally.
 # Consider the offset (1,1). I'll use "-" to represent some padding for easier visualization.
@@ -1021,12 +1024,11 @@ plot_two(img, affinity, label="Affinities")
 # %% [markdown]
 # <div class="alert alert-block alert-info">
 # <b>Task 4.1</b>: Train a model with affinities as targets.
-# </div>
-# %% [markdown]
+#
 # Repurpose the training loop which you used for the SDTs. <br>
 # Think carefully about your final activation and number of out channels. <br>
 # (The best for SDT is not necessarily the best for affinities.)
-
+# </div>
 # %% tags=["task"]
 
 unet = ...
@@ -1084,7 +1086,7 @@ for epoch in range(NUM_EPOCHS):
 # Let's next look at a prediction on a random image.
 # We will be using mutex watershed (see this paper by [Wolf et al.](https://arxiv.org/abs/1904.12654)) for post processing. I won't dive too much into the details, but it is similar to watershed except that it allows edges to have negative weights and for splits, removing the need for finding seed points.
 # However this does mean we now need a bias term since if we give it all positive edges (our affinities are in range (0, 1)) everything will join into a single object. Thus our bias should be in range (-1, 0), such that we have some positive and some negative affinities.
-# 
+#
 # It can also be useful to bias long range affinities more negatively than the short range affinities. The intuition here being that boundaries are often blurry in biology. This means it may not be easy to tell if the neighboring pixel has crossed a boundary, but it is reasonably easy to tell if there is a boundary accross a 5 pixel gap. Similarly, identifying if two pixels belong to the same object is easier, the closer they are to each other. Providing a more negative bias to long range affinities means we bias towards splitting on low long range affinities, and merging on high short range affinities.
 
 # %%
