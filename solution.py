@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Exercise 05: Instance Segmentation
+# # Exercise 05: Instance Segmentation :)
 #
 # So far, we were only interested in `semantic` classes, e.g. foreground / background etc.
 # But in many cases we not only want to know if a certain pixel belongs to a specific class, but also to which unique object (i.e. the task of `instance segmentation`).
@@ -40,12 +40,11 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 import os
 import torch
-from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 from scipy.ndimage import distance_transform_edt, map_coordinates
-from local import train, NucleiDataset, plot_two, plot_three, plot_four
+from local import train, plot_two, plot_three, plot_four
 from dlmbl_unet import UNet
 from tqdm import tqdm
 import tifffile
@@ -58,11 +57,11 @@ from skimage.morphology import remove_small_objects
 # %%
 # Set some variables that are specific to the hardware being run on
 # this should be optimized for the compute nodes once available.
-device = "cpu"  # 'cuda', 'cpu', 'mps'
-NUM_THREADS = 0
-NUM_EPOCHS = 20
+device = "cuda"  # 'cuda', 'cpu', 'mps'
+NUM_THREADS = 8
+NUM_EPOCHS = 200
 # make sure gpu is available. Please call a TA if this cell fails
-# assert torch.cuda.is_available()
+assert torch.cuda.is_available()
 
 # %%
 # Create a custom label color map for showing instances
@@ -228,7 +227,7 @@ plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 #     Modify the `SDTDataset` class below to produce the paired raw and SDT images.<br>
 #   1. Fill in the `create_sdt_target` method to return an SDT output rather than a label mask.<br>
 #       - Ensure that all final outputs are of torch tensor type, and are converted to float.
-#   2. Instantiate the dataset with a RandomCrop of size 256 and visualize the output to confirm that the SDT is correct.
+#   2. Instantiate the dataset with a RandomCrop of size 128 and visualize the output to confirm that the SDT is correct.
 # </div>
 
 
@@ -322,7 +321,7 @@ class SDTDataset(Dataset):
 
         self.loaded_imgs = [None] * self.num_samples
         self.loaded_masks = [None] * self.num_samples
-        for sample_ind in tqdm(range(self.num_samples), desc="Reaqding Images"):
+        for sample_ind in tqdm(range(self.num_samples), desc="Reading Images"):
             img_path = os.path.join(self.root_dir, f"img_{sample_ind}.tif")
             image = self.from_np(tifffile.imread(img_path))
             self.loaded_imgs[sample_ind] = inp_transforms(image)
@@ -366,7 +365,7 @@ class SDTDataset(Dataset):
 
 
 # %% tags=["task"]
-# Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
+# Create a dataset using a RandomCrop of size 128 (see torchvision.transforms.v2 imported as v2)
 # documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
 # Visualize the output to confirm your dataset is working.
 
@@ -378,11 +377,11 @@ img, sdt = train_data[10]  # get the image and the distance transform
 plot_two(img, sdt[0], label="SDT")
 
 # %% tags=["solution"]
-# Create a dataset using a RandomCrop of size 256 (see torchvision.transforms.v2 imported as v2)
+# Create a dataset using a RandomCrop of size 128 (see torchvision.transforms.v2 imported as v2)
 # documentation here: https://pytorch.org/vision/stable/transforms.html#v2-api-reference-recommended
 # Visualize the output to confirm your dataset is working.
 
-train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(256))
+train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(128))
 img, sdt = train_data[10]  # get the image and the distance transform
 # We use the `plot_two` function (imported in the first cell) to verify that our
 # dataset solution is correct. The output should show 2 images: the raw image and
@@ -422,7 +421,7 @@ plot_two(img, sdt[0], label="SDT")
 # %%
 # TODO: You don't have to add extra augmentations, training will work without.
 # But feel free to experiment here if you want to come back and try to get better results if you have time.
-train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(256))
+train_data = SDTDataset("tissuenet_data/train", v2.RandomCrop(128))
 train_loader = DataLoader(
     train_data, batch_size=5, shuffle=True, num_workers=NUM_THREADS
 )
@@ -1007,7 +1006,7 @@ class AffinityDataset(Dataset):
 neighborhood = [[0, 1], [1, 0], [0, 5], [5, 0]]
 train_data = AffinityDataset(
     "tissuenet_data/train",
-    v2.RandomCrop(256),
+    v2.RandomCrop(128),
     weights=True,
     neighborhood=neighborhood,
 )
@@ -1089,7 +1088,7 @@ for epoch in range(NUM_EPOCHS):
 # It can also be useful to bias long range affinities more negatively than the short range affinities. The intuition here being that boundaries are often blurry in biology. This means it may not be easy to tell if the neighboring pixel has crossed a boundary, but it is reasonably easy to tell if there is a boundary accross a 5 pixel gap. Similarly, identifying if two pixels belong to the same object is easier, the closer they are to each other. Providing a more negative bias to long range affinities means we bias towards splitting on low long range affinities, and merging on high short range affinities.
 
 # %%
-val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(256), return_mask=True)
+val_data = AffinityDataset("tissuenet_data/test", v2.RandomCrop(128), return_mask=True)
 val_loader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=8)
 
 unet.eval()
@@ -1222,7 +1221,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # %% tags=["solution"]
 from cellpose import models
 
-model = models.Cellpose(model_type="nuclei")
+model = models.Cellpose(model_type="cyto3")
 channels = [[0, 0]]
 
 precision_list, recall_list, accuracy_list = [], [], []
