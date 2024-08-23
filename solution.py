@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Exercise 05: Instance Segmentation :)
+# # Exercise 05: Instance Segmentation
 #
 # So far, we were only interested in `semantic` classes, e.g. foreground / background etc.
 # But in many cases we not only want to know if a certain pixel belongs to a specific class, but also to which unique object (i.e. the task of `instance segmentation`).
