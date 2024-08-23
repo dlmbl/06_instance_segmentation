@@ -33,12 +33,6 @@
 # %% [markdown]
 # ## Section 0: Imports and Setup
 
-# %%
-# Set start method for MacOS
-import multiprocessing
-
-multiprocessing.set_start_method("fork", force=True)
-
 # %% [markdown]
 # ## Import Packages
 # %%
