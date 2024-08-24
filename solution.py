@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Exercise 05: Instance Segmentation :D
+# # Exercise 04: Instance Segmentation :D
 #
 # So far, we were only interested in `semantic` classes, e.g. foreground / background etc.
 # But in many cases we not only want to know if a certain pixel belongs to a specific class, but also to which unique object (i.e. the task of `instance segmentation`).
@@ -59,7 +59,7 @@ from skimage.morphology import remove_small_objects
 # this should be optimized for the compute nodes once available.
 device = "cuda"  # 'cuda', 'cpu', 'mps'
 NUM_THREADS = 8
-NUM_EPOCHS = 200
+NUM_EPOCHS = 80
 # make sure gpu is available. Please call a TA if this cell fails
 assert torch.cuda.is_available()
 
@@ -203,7 +203,7 @@ plot_three(img, label, sdt, label="SDT", label_cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 1.2</b>: Explain the scale parameter in <code>compute_std</code>.
+# <b>Task 1.2</b>: Explain the scale parameter in <code>compute_sdt</code>.
 # </div>
 
 # %% [markdown] tas=["task"]
@@ -408,7 +408,7 @@ plot_two(img, sdt[0], label="SDT")
 # Our dataloader has some features that are not straightforward to understand or justify, and this is a good point
 # to discuss them.
 #
-# 1. _What are we doing with the `seed` variabel and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
+# 1. _What are we doing with the `seed` variable and why? Can you predict what will go wrong when you delete the `seed` code and rerun the previous cells visualization?_
 # The seed variable is used to ensure that the same random transform is applied to the image and mask. If we don't use the seed, the image and mask will be transformed differently, leading to misaligned data.
 #
 # 2. _What is the purpose of the `loaded_imgs` and `loaded_masks` lists?_
@@ -536,7 +536,17 @@ from scipy.ndimage import label, maximum_filter
 
 
 def find_local_maxima(distance_transform, min_dist_between_points):
-    # Hint: Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
+    """
+    Find the local maxima of the distance transform and generate seed points for our watershed.
+
+    inputs:
+        distance_transform: the distance transform of the image (2D numpy array)
+        min_dist_between_points: the minimum distance between points (scalar)
+
+    returns:
+        seeds: the seeds for the watershed (2D numpy array with uniquely labelled seed points)
+        number_of_seeds: the number of seeds (scalar)
+    """
 
     ...
     seeds, number_of_seeds = ...
@@ -549,7 +559,18 @@ from scipy.ndimage import label, maximum_filter
 
 
 def find_local_maxima(distance_transform, min_dist_between_points):
-    # Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
+    """
+    Find the local maxima of the distance transform and generate seed points for our watershed.
+
+    inputs:
+        distance_transform: the distance transform of the image (2D numpy array)
+        min_dist_between_points: the minimum distance between points (scalar)
+
+    returns:
+        seeds: the seeds for the watershed (2D numpy array with uniquely labelled seed points)
+        number_of_seeds: the number of seeds (scalar)
+    """
+
     max_filtered = maximum_filter(distance_transform, min_dist_between_points)
     maxima = max_filtered == distance_transform
     # Uniquely label the local maxima
@@ -572,7 +593,7 @@ from skimage.segmentation import watershed
 
 def watershed_from_boundary_distance(
     boundary_distances: np.ndarray,
-    inner_mask: np.ndarray,
+    semantic_segmentation: np.ndarray,
     id_offset: float = 0,
     min_seed_distance: int = 10,
 ):
@@ -587,15 +608,11 @@ def watershed_from_boundary_distance(
 
     # calculate our segmentation
     segmentation = watershed(
-        boundary_distances.max() - boundary_distances, seeds, mask=inner_mask
+        boundary_distances.max() - boundary_distances, seeds, mask=semantic_segmentation
     )
 
     return segmentation
 
-
-def get_inner_mask(pred, threshold):
-    inner_mask = pred > threshold
-    return inner_mask
 
 
 # %% [markdown]
@@ -610,13 +627,13 @@ image, mask = val_data[idx]  # get the image and the nuclei masks
 # get the model prediction
 # Hint: make sure set the model to evaluation
 # Hint: check the dims of the image, remember they should be [batch, channels, x, y]
-# Hint: remember to move model outputs to the cpu and check their dimensions (as you did in task 1.4 visualization)
 unet.eval()
 
 # remember to move the image to the device
 pred = ...
 
 # turn image, mask, and pred into plain numpy arrays
+# don't forget to remove the batch dimension.
 
 # Choose a threshold value to use to get the boundary mask.
 # Feel free to play around with the threshold.
@@ -624,8 +641,8 @@ pred = ...
 
 threshold = ...
 
-# Get inner mask
-inner_mask = get_inner_mask(...)
+# Get a semantic segmentation by thresholding your distance transform
+semantic_segmentation = ...
 
 # Get the segmentation
 seg = watershed_from_boundary_distance(...)
@@ -653,15 +670,15 @@ threshold = threshold_otsu(pred)
 print(f"Foreground threshold is {threshold:.3f}")
 
 # Get inner mask
-inner_mask = get_inner_mask(pred, threshold=threshold)
+semantic_segmentation = pred > threshold
 
 # Get the segmentation
-seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
+seg = watershed_from_boundary_distance(pred, semantic_segmentation, min_seed_distance=20)
 
 # %%
 # Visualize the results
 
-plot_four(image[1], mask, pred, seg, label="Target", cmap=label_cmap)
+plot_four(image, mask, pred, seg, label="Target", cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
@@ -690,15 +707,15 @@ plot_four(image[1], mask, pred, seg, label="Target", cmap=label_cmap)
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
-# <b>Task 3.1</b>: Pick the best metric to use
+# <b>Task 3.1</b>: Take some time to explore metrics-reloaded. This is a very helpful resource for understanding evaluation metrics.
 #
 # Which of the following should we use for our dataset?:
 #   1) [IoU](https://metrics-reloaded.dkfz.de/metric?id=intersection_over_union)
 #   2) [Accuracy](https://metrics-reloaded.dkfz.de/metric?id=accuracy)
 #   3) [Sensitivity](https://metrics-reloaded.dkfz.de/metric?id=sensitivity) and [Specificity](https://metrics-reloaded.dkfz.de/metric?id=specificity@target_value)
 # </div>
-# %% [markdown] tags=["solution"]
-# We will use Accuracy, Precision, and Recall as our evaluation metrics. IoU is also a good metric to use, but it is more commonly used for semantic segmentation tasks.
+# %% [markdown]
+# We will use Accuracy, Specificity/Precision, and Sensitivity/Recall as our evaluation metrics. IoU is also a good metric to use, but it is more commonly used for semantic segmentation tasks.
 
 # %% [markdown]
 # <div class="alert alert-block alert-info">
@@ -736,7 +753,7 @@ for idx, (image, mask, sdt) in enumerate(tqdm(val_dataloader)):
     thresh = ...
 
     # get boundary mask
-    inner_mask = ...
+    semantic_segmentation = ...
     pred_labels = ...
     precision, recall, accuracy = evaluate(gt_labels, pred_labels)
     precision_list.append(precision)
@@ -778,10 +795,10 @@ for idx, (image, mask, sdt) in enumerate(tqdm(val_dataloader)):
     thresh = threshold_otsu(pred)
 
     # get boundary mask
-    inner_mask = get_inner_mask(pred, threshold=thresh)
+    semantic_segmentation = pred > thresh
 
     pred_labels = watershed_from_boundary_distance(
-        pred, inner_mask, id_offset=0, min_seed_distance=20
+        pred, semantic_segmentation, id_offset=0, min_seed_distance=20
     )
     precision, recall, accuracy = evaluate(gt_labels, pred_labels)
     precision_list.append(precision)
@@ -795,6 +812,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # %% [markdown]
 # <div class="alert alert-block alert-success">
 # <h2> Checkpoint 3 </h2>
+# If you reached an accuracy of about 0.4, that is good enough for this exercise. You could definitely get better results if you spend some time improving your training pipeline with any or all of: augmentations, a larger unet, more epochs.
 
 # %% [markdown]
 # <hr style="height:2px;">
@@ -1117,6 +1135,7 @@ pred_labels = remove_small_objects(
 precision, recall, accuracy = evaluate(gt_labels, pred_labels)
 print(f"After filter: Precision: {precision:.3f}, Recall: {recall:.3f}, Accuracy: {accuracy:.3f}")
 plot_four(image, affs, pred, pred_labels, label="Affinity", cmap=label_cmap)
+
 # %% [markdown]
 # Let's also evaluate the model performance.
 
@@ -1148,17 +1167,6 @@ for idx, (image, mask, _) in enumerate(tqdm(val_dataloader)):
 
     pred = np.squeeze(pred.cpu().detach().numpy())
 
-    # # feel free to try different thresholds
-    # thresh = threshold_otsu(pred)
-
-    # # get boundary mask
-    # inner_mask = 0.5 * (pred[0] + pred[1]) > thresh
-
-    # boundary_distances = distance_transform_edt(inner_mask)
-
-    # pred_labels = watershed_from_boundary_distance(
-    #     boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
-    # )
     pred_labels = mws.agglom(
         np.array(
             [
@@ -1193,6 +1201,7 @@ print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
 # %% [markdown]
 # <div class="alert alert-block alert-success">
 # <h2> Checkpoint 4 </h2>
+# You have now completed the exercise! If you achieved an accuracy of around 0.5, that is pretty decent. If you have time to spare you can try ot push the accuracy higher. I would recommend exploring augmentations (rotations work very nicely for this task), a larger unet, and more epochs, and potentially adjusting the learning rate.
 
 # %% [markdown]
 # <hr style="height:2px;">
